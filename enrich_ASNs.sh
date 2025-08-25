@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
-# enrich_one_asn.sh (hardened)
+# enrich_one_asn.sh (hardened + constraints)
 # RIPEstat-only enrichment; reads ASNs from JSON (array or NDJSON of {"asn": <num>})
+# Adds Neo4j uniqueness constraints for AS.asn and Organization.name (Point 1).
+#
 # Usage:
 #   ./enrich_one_asn.sh --json FILE [--host HOST] [--user USER] [--db DB] [--bolt neo4j+s://HOST:7687]
+#
+# Requirements: bash, curl, jq, Docker (for cypher-shell via neo4j image) or local cypher-shell
+# Auth: export NEO4J_PASS='your_password'
 set -euo pipefail
 
-die() { echo "ERROR: $*" >&2; exit 1; }
-warn() { echo "WARN: $*" >&2; }
+die()  { echo "ERROR: $*" >&2; exit 1; }
+warn() { echo "WARN:  $*" >&2; }
 
 # -------- Defaults --------
 HOST="${HOST:-localhost}"
@@ -28,7 +33,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "${JSON_FILE}" ]] || die "Provide --json <file> with objects like: {\"asn\": 7}"
-command -v jq >/dev/null || die "jq is required"
+command -v jq >/dev/null   || die "jq is required"
 command -v curl >/dev/null || die "curl is required"
 : "${NEO4J_PASS:?Set NEO4J_PASS environment variable}"
 [[ -s "${JSON_FILE}" ]] || die "JSON file not found or empty: ${JSON_FILE}"
@@ -36,7 +41,6 @@ command -v curl >/dev/null || die "curl is required"
 # -------- Helpers --------
 # Escape a bash string as a Cypher single-quoted literal: '...'
 cypher_str() {
-  # Escape backslashes and single quotes for Cypher
   local s="${1//\\/\\\\}"
   s="${s//\'/\\\'}"
   printf "'%s'" "$s"
@@ -56,16 +60,31 @@ run_cypher() {
 # Curl with timeout & retries
 CURL="curl -fsSL --connect-timeout 5 --max-time 15 --retry 3 --retry-delay 1 --retry-connrefused"
 
+# -------- Ensure uniqueness constraints (Point 1) --------
+ensure_constraints() {
+  echo "Ensuring Neo4j uniqueness constraints…"
+
+  # Neo4j 5 syntax; IF NOT EXISTS is idempotent unless existing duplicate data blocks creation.
+  local ddl_as="CREATE CONSTRAINT as_asn IF NOT EXISTS FOR (a:AS) REQUIRE a.asn IS UNIQUE;"
+  local ddl_org="CREATE CONSTRAINT org_name IF NOT EXISTS FOR (o:Organization) REQUIRE o.name IS UNIQUE;"
+
+  if ! run_cypher "$ddl_as" >/dev/null 2>&1; then
+    warn "Could not create/verify constraint 'as_asn'. If you have duplicate AS nodes without unique asn, fix them before re-running."
+  fi
+  if ! run_cypher "$ddl_org" >/dev/null 2>&1; then
+    warn "Could not create/verify constraint 'org_name'. If duplicates exist (same Organization.name), deduplicate or normalize and re-run."
+  fi
+}
+
+# -------- RIPEstat enrichment --------
 ripe_enrich_asn() {
   local asn="$1" base="https://stat.ripe.net/data"
   local overview whois org_name country address_lines_json
 
-  # Overview (holder/country)
   overview="$($CURL "${base}/as-overview/data.json?resource=AS${asn}")" || return 1
   org_name="$(jq -r '.data.holder // empty' <<<"$overview" || true)"
   country="$(jq -r '.data.country // empty' <<<"$overview" || true)"
 
-  # WHOIS (address/descr lines → array, then we’ll join later)
   whois="$($CURL "${base}/whois/data.json?resource=AS${asn}" || true)"
   address_lines_json="$(
     jq -r '
@@ -78,7 +97,6 @@ ripe_enrich_asn() {
   )"
   [[ -z "$address_lines_json" || "$address_lines_json" == "null" ]] && address_lines_json="[]"
 
-  # Emit a compact JSON object
   jq -n --argjson asn "$asn" \
         --arg org_name "${org_name:-}" \
         --arg country   "${country:-}" \
@@ -109,8 +127,11 @@ echo "Using Neo4j @ ${BOLT_URI} (db=${DB}, user=${USER})"
 echo "Reading ASNs from ${JSON_FILE}"
 echo
 
+# Create/verify constraints up-front (non-fatal if they already exist or if duplicates block creation)
+ensure_constraints
+echo
+
 # -------- Stream ASNs safely (array or NDJSON) --------
-# We stream to avoid loading everything into RAM; each ASN is handled independently.
 jq -r '
   if type=="array" then .[] else . end
   | .asn
@@ -120,13 +141,11 @@ jq -r '
   [[ -n "$ASN" ]] || continue
   echo "→ Enriching AS${ASN} via RIPEstat…"
 
-  # Guard block so a failure here doesn't abort the whole file
   if ! DATA="$(ripe_enrich_asn "$ASN")"; then
     warn "RIPEstat error for AS${ASN}, skipping"
     continue
   fi
 
-  # Extract fields; guard jq to avoid aborting the loop
   ORG_NAME="$(jq -r '.org_name // empty' <<<"$DATA" 2>/dev/null || true)"
   COUNTRY="$(jq -r '.country // empty' <<<"$DATA" 2>/dev/null || true)"
   ADDR_STR="$(
@@ -139,7 +158,6 @@ jq -r '
   )"
   REG_URL="https://stat.ripe.net/data/as-overview?resource=AS${ASN}"
 
-  # Build safely-escaped Cypher parameter literals
   P_ASN="--param asn=${ASN}"
   P_ORG="--param org_name=$(cypher_str "${ORG_NAME}")"
   P_CTY="--param country=$(cypher_str "${COUNTRY}")"
