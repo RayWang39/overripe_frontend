@@ -32,18 +32,26 @@ Critical relationships: DEPENDS_ON (upstream providers), MANAGED_BY (organizatio
 
 ```
 iyp_query/                  # Core API library
-├── __init__.py
-├── builder.py              # Main query builder class
-├── conditions.py           # AND/OR/NOT logic implementation
+├── __init__.py            # Public API exports & connection functions
+├── builder.py              # Main IYPQueryBuilder class
+├── conditions.py           # Q, And, Or, Not boolean logic implementation
 ├── traversals.py           # Graph traversal helpers
 ├── domain.py              # High-level domain-specific queries
 ├── types.py               # Enums for node/relationship types
 ├── validators.py          # Query validation
-├── executors.py           # Neo4j execution and result formatting
+├── executors.py           # Neo4j connection & query execution
 └── examples.py            # Usage examples
 
-test_*.py                   # Various test files for API validation
-requirements.txt            # Core API dependencies
+notebook/                   # Data analysis notebooks
+└── data_discovery.ipynb  # UK company data analysis
+
+yellow_page_info/          # Database schema documentation
+├── node-types.md         # Node types documentation
+└── relationship-types.md # Relationship types documentation
+
+enrich_ASNs.sh            # ASN enrichment script using RIPEstat API
+UK_ASNs.json              # Sample UK ASN data
+requirements.txt          # Core API dependencies
 ```
 
 ## Development Commands
@@ -56,30 +64,37 @@ pyenv activate overripe
 
 # Install core API dependencies
 pip install -r requirements.txt
+
+# For ASN enrichment script (enrich_ASNs.sh)
+# Requires: bash, curl, jq, and either Docker or local cypher-shell
+# Set Neo4j password: export NEO4J_PASS='lewagon25omgbbq'
 ```
 
 ### Running the Application
 ```bash
-# Test the API interactively
-python test_interactive.py
+# Run example queries
+python -m iyp_query.examples
 
-# Run basic API tests
-python test_basic.py
+# Interactive Python session
+python
+>>> from iyp_query import connect
+>>> iyp = connect('bolt+s://iyp.christyquinn.com:7687', 'neo4j', 'lewagon25omgbbq')
 
-# Test with live database (requires connection details)
-python test_live_db.py
+# Run ASN enrichment script
+./enrich_ASNs.sh --json UK_ASNs.json --bolt bolt+s://iyp.christyquinn.com:7687
 ```
 
 ### Testing
+Note: No formal test suite currently exists. To validate functionality:
 ```bash
-# Run all tests
-pytest
+# Run the examples module to verify basic functionality
+python -m iyp_query.examples
 
-# Run with coverage
-pytest --cov=iyp_query
-
-# Run specific test file
-pytest tests/test_builder.py
+# Interactive testing with live database
+python
+>>> from iyp_query import connect, Q, And
+>>> iyp = connect('bolt+s://iyp.christyquinn.com:7687', 'neo4j', 'lewagon25omgbbq')
+>>> results = iyp.builder().find('AS', asn=216139).execute()
 ```
 
 ### Code Quality
@@ -124,7 +139,7 @@ The core API connects to the live IYP database:
 
 The system should handle complex queries like:
 ```python
-query = (iyp
+results = (iyp
     .find('AS', alias='target_as')
     .with_relationship('COUNTRY', to='Country', alias='as_country')
     .with_relationship('DEPENDS_ON', to='AS', alias='upstream')
@@ -135,7 +150,9 @@ query = (iyp
         )
     )
     .return_fields(['target_as.asn', 'target_as.name'])
+    .execute()
 )
+```
 
 ## Troubleshooting Common Issues
 
