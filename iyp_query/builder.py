@@ -69,8 +69,13 @@ class IYPQueryBuilder:
         validated_type = self.validator.validate_node_type(node_type)
         
         if alias is None:
-            # Use node type as alias - each builder is independent so no conflicts
-            alias = node_type.lower()
+            # Generate a unique alias based on node type and existing aliases
+            base_alias = node_type.lower()
+            alias = base_alias
+            counter = 1
+            while alias in self.validator.defined_aliases:
+                alias = f"{base_alias}_{counter}"
+                counter += 1
         
         self.validator.register_alias(alias, validated_type)
         self.root_alias = alias
@@ -132,7 +137,19 @@ class IYPQueryBuilder:
         if to:
             to_node_type = self.validator.validate_node_type(to)
         
-        to_alias = alias or (to.lower() if to else f"node_{len(self.relationships)}")
+        if alias is None:
+            if to:
+                # Generate unique alias for the target node type
+                base_alias = to.lower()
+                to_alias = base_alias
+                counter = 1
+                while to_alias in self.validator.defined_aliases:
+                    to_alias = f"{base_alias}_{counter}"
+                    counter += 1
+            else:
+                to_alias = f"node_{len(self.relationships)}"
+        else:
+            to_alias = alias
         
         if to_node_type:
             self.validator.register_alias(to_alias, to_node_type)
