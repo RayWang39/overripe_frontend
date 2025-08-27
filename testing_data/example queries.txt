@@ -1,0 +1,46 @@
+// Set your target ASN here
+WITH 216139 AS target
+
+// (a) target AS -> its org
+MATCH path1 = (a:AS {asn: target})-[:MANAGED_BY]->(o:Organization)
+
+// (b) target AS -> upstream ASes
+OPTIONAL MATCH path2 = (a)-[:DEPENDS_ON]->(up:AS)
+WHERE up IS NULL OR up.asn <> a.asn   // avoid self-loop if present
+
+// (c) each upstream AS -> its org
+OPTIONAL MATCH path3 = (up)-[:MANAGED_BY]->(uo:Organization)
+
+// (optional) cap huge neighborhoods
+// WITH path1, path2, path3 LIMIT 500
+
+RETURN path1, path2, path3;
+
+// Set your target Country node id here
+WITH 224395 AS countryId
+
+// (a) all ASes linked to that Country node
+MATCH (c) WHERE id(c) = countryId
+MATCH path1 = (a:AS)-[:COUNTRY]-(c)
+
+// (b) AS -> upstream ASes (avoid self-loop)
+OPTIONAL MATCH path2 = (a)-[:DEPENDS_ON]->(up:AS)
+WHERE up IS NULL OR up.asn <> a.asn
+
+// (c) AS and upstream orgs
+OPTIONAL MATCH path3 = (a)-[:MANAGED_BY]->(o:Organization)
+OPTIONAL MATCH path4 = (up)-[:MANAGED_BY]->(uo:Organization)
+
+// Return rows, then apply one global LIMIT
+RETURN path1, path2, path3, path4
+LIMIT 20;
+
+
+#return all prefixes being originated by an AS
+MATCH p = (:AS {asn: 216139})-[:ORIGINATE]->(prefix:Prefix)
+RETURN p;
+
+#return country-level geo for prefixes being originated by an AS
+MATCH (a:AS {asn: 216139})-[:ORIGINATE]->(prefix:Prefix)
+OPTIONAL MATCH (prefix)-[:COUNTRY]->(c:Country)
+RETURN a, prefix, c;
