@@ -1,0 +1,127 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        
+            <script src="lib/bindings/utils.js"></script>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css" integrity="sha512-WgxfT5LWjfszlPHXRmBWHkV2eceiWTOBvrKCNbdgDYTHrT2AeLCGbF4sZlZw3UMN3WtL0tGUoIAKsu8mllg/XA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js" integrity="sha512-LnvoEWDFrqGHlHmDD2101OrLcbsfkrzoSpvtSQtxK3RMnRV0eOkhhBN2dXHKRrUU8p2DGRTk35n4O8nWSVe1mQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+            
+        
+<center>
+<h1></h1>
+</center>
+
+<!-- <link rel="stylesheet" href="../node_modules/vis/dist/vis.min.css" type="text/css" />
+<script type="text/javascript" src="../node_modules/vis/dist/vis.js"> </script>-->
+        <link
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css"
+          rel="stylesheet"
+          integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6"
+          crossorigin="anonymous"
+        />
+        <script
+          src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf"
+          crossorigin="anonymous"
+        ></script>
+
+
+        <center>
+          <h1></h1>
+        </center>
+        <style type="text/css">
+
+             #mynetwork {
+                 width: 100%;
+                 height: 600px;
+                 background-color: #1e1e1e;
+                 border: 1px solid lightgray;
+                 position: relative;
+                 float: left;
+             }
+
+             
+
+             
+
+             
+        </style>
+    </head>
+
+
+    <body>
+        <div class="card" style="width: 100%">
+            
+            
+            <div id="mynetwork" class="card-body"></div>
+        </div>
+
+        
+        
+
+        <script type="text/javascript">
+
+              // initialize global variables.
+              var edges;
+              var nodes;
+              var allNodes;
+              var allEdges;
+              var nodeColors;
+              var originalNodes;
+              var network;
+              var container;
+              var options, data;
+              var filter = {
+                  item : '',
+                  property : '',
+                  value : []
+              };
+
+              
+
+              
+
+              // This method is responsible for drawing the graph, returns the drawn network
+              function drawGraph() {
+                  var container = document.getElementById('mynetwork');
+
+                  
+
+                  // parsing and collecting nodes and edges from the python
+                  nodes = new vis.DataSet([{"color": "#97C2FC", "font": {"color": "white"}, "id": 0, "label": "AS", "shape": "dot", "size": 25, "title": "ID: 0\nLabels: AS\nProperties:\n  asn: 0"}, {"color": "#FFCC02", "font": {"color": "white"}, "id": 178946, "label": "Name", "shape": "dot", "size": 25, "title": "ID: 178946\nLabels: Name\nProperties:\n  name: -Reserved AS-"}, {"color": "#97C2FC", "font": {"color": "white"}, "id": 1, "label": "AS", "shape": "dot", "size": 25, "title": "ID: 1\nLabels: AS\nProperties:\n  asn: 1"}, {"color": "#FFCC02", "font": {"color": "white"}, "id": 214334, "label": "Name", "shape": "dot", "size": 25, "title": "ID: 214334\nLabels: Name\nProperties:\n  name: LVLT-1"}, {"color": "#97C2FC", "font": {"color": "white"}, "id": 2, "label": "AS", "shape": "dot", "size": 25, "title": "ID: 2\nLabels: AS\nProperties:\n  asn: 2"}, {"color": "#FFCC02", "font": {"color": "white"}, "id": 212861, "label": "Name", "shape": "dot", "size": 25, "title": "ID: 212861\nLabels: Name\nProperties:\n  name: UDEL-DCN"}, {"color": "#97C2FC", "font": {"color": "white"}, "id": 3, "label": "AS", "shape": "dot", "size": 25, "title": "ID: 3\nLabels: AS\nProperties:\n  asn: 3"}, {"color": "#FFCC02", "font": {"color": "white"}, "id": 132205, "label": "Name", "shape": "dot", "size": 25, "title": "ID: 132205\nLabels: Name\nProperties:\n  name: MIT-GATEWAYS"}, {"color": "#97C2FC", "font": {"color": "white"}, "id": 4, "label": "AS", "shape": "dot", "size": 25, "title": "ID: 4\nLabels: AS\nProperties:\n  asn: 4"}, {"color": "#FFCC02", "font": {"color": "white"}, "id": 119701, "label": "Name", "shape": "dot", "size": 25, "title": "ID: 119701\nLabels: Name\nProperties:\n  name: ISI-AS"}, {"color": "#97C2FC", "font": {"color": "white"}, "id": 5, "label": "AS", "shape": "dot", "size": 25, "title": "ID: 5\nLabels: AS\nProperties:\n  asn: 5"}, {"color": "#FFCC02", "font": {"color": "white"}, "id": 137550, "label": "Name", "shape": "dot", "size": 25, "title": "ID: 137550\nLabels: Name\nProperties:\n  name: SYMBOLICS"}, {"color": "#97C2FC", "font": {"color": "white"}, "id": 6, "label": "AS", "shape": "dot", "size": 25, "title": "ID: 6\nLabels: AS\nProperties:\n  asn: 6"}, {"color": "#FFCC02", "font": {"color": "white"}, "id": 223540, "label": "Name", "shape": "dot", "size": 25, "title": "ID: 223540\nLabels: Name\nProperties:\n  name: BULL-HN"}, {"color": "#97C2FC", "font": {"color": "white"}, "id": 7, "label": "AS", "shape": "dot", "size": 25, "title": "ID: 7\nLabels: AS\nProperties:\n  asn: 7"}, {"color": "#FFCC02", "font": {"color": "white"}, "id": 146211, "label": "Name", "shape": "dot", "size": 25, "title": "ID: 146211\nLabels: Name\nProperties:\n  name: DSTL"}, {"color": "#97C2FC", "font": {"color": "white"}, "id": 8, "label": "AS", "shape": "dot", "size": 25, "title": "ID: 8\nLabels: AS\nProperties:\n  asn: 8"}, {"color": "#FFCC02", "font": {"color": "white"}, "id": 201109, "label": "Name", "shape": "dot", "size": 25, "title": "ID: 201109\nLabels: Name\nProperties:\n  name: RICE-AS"}, {"color": "#97C2FC", "font": {"color": "white"}, "id": 9, "label": "AS", "shape": "dot", "size": 25, "title": "ID: 9\nLabels: AS\nProperties:\n  asn: 9"}, {"color": "#FFCC02", "font": {"color": "white"}, "id": 178510, "label": "Name", "shape": "dot", "size": 25, "title": "ID: 178510\nLabels: Name\nProperties:\n  name: CMU-ROUTER"}]);
+                  edges = new vis.DataSet([{"arrows": "to", "color": "#666666", "from": 0, "label": "NAME", "title": "Type: NAME\nProperties:\n  reference_org: RIPE NCC\n  reference_name: ripe.as_names\n  reference_time_fetch: 2025-08-15T00:00:00.000000000+00:00\n  reference_url_data: https://ftp.ripe.net/ripe/asnames/asn.txt\n  reference_time_modification: 2025-08-14T10:49:01.000000000+00:00\n  reference_url_info: ", "to": 178946, "width": 2}, {"arrows": "to", "color": "#666666", "from": 1, "label": "NAME", "title": "Type: NAME\nProperties:\n  reference_org: RIPE NCC\n  reference_name: ripe.as_names\n  reference_time_fetch: 2025-08-15T00:00:00.000000000+00:00\n  reference_url_data: https://ftp.ripe.net/ripe/asnames/asn.txt\n  reference_time_modification: 2025-08-14T10:49:01.000000000+00:00\n  reference_url_info: ", "to": 214334, "width": 2}, {"arrows": "to", "color": "#666666", "from": 2, "label": "NAME", "title": "Type: NAME\nProperties:\n  reference_org: RIPE NCC\n  reference_name: ripe.as_names\n  reference_time_fetch: 2025-08-15T00:00:00.000000000+00:00\n  reference_url_data: https://ftp.ripe.net/ripe/asnames/asn.txt\n  reference_time_modification: 2025-08-14T10:49:01.000000000+00:00\n  reference_url_info: ", "to": 212861, "width": 2}, {"arrows": "to", "color": "#666666", "from": 3, "label": "NAME", "title": "Type: NAME\nProperties:\n  reference_org: RIPE NCC\n  reference_name: ripe.as_names\n  reference_time_fetch: 2025-08-15T00:00:00.000000000+00:00\n  reference_url_data: https://ftp.ripe.net/ripe/asnames/asn.txt\n  reference_time_modification: 2025-08-14T10:49:01.000000000+00:00\n  reference_url_info: ", "to": 132205, "width": 2}, {"arrows": "to", "color": "#666666", "from": 4, "label": "NAME", "title": "Type: NAME\nProperties:\n  reference_org: RIPE NCC\n  reference_name: ripe.as_names\n  reference_time_fetch: 2025-08-15T00:00:00.000000000+00:00\n  reference_url_data: https://ftp.ripe.net/ripe/asnames/asn.txt\n  reference_time_modification: 2025-08-14T10:49:01.000000000+00:00\n  reference_url_info: ", "to": 119701, "width": 2}, {"arrows": "to", "color": "#666666", "from": 5, "label": "NAME", "title": "Type: NAME\nProperties:\n  reference_org: RIPE NCC\n  reference_name: ripe.as_names\n  reference_time_fetch: 2025-08-15T00:00:00.000000000+00:00\n  reference_url_data: https://ftp.ripe.net/ripe/asnames/asn.txt\n  reference_time_modification: 2025-08-14T10:49:01.000000000+00:00\n  reference_url_info: ", "to": 137550, "width": 2}, {"arrows": "to", "color": "#666666", "from": 6, "label": "NAME", "title": "Type: NAME\nProperties:\n  reference_org: RIPE NCC\n  reference_name: ripe.as_names\n  reference_time_fetch: 2025-08-15T00:00:00.000000000+00:00\n  reference_url_data: https://ftp.ripe.net/ripe/asnames/asn.txt\n  reference_time_modification: 2025-08-14T10:49:01.000000000+00:00\n  reference_url_info: ", "to": 223540, "width": 2}, {"arrows": "to", "color": "#666666", "from": 7, "label": "NAME", "title": "Type: NAME\nProperties:\n  reference_org: RIPE NCC\n  reference_name: ripe.as_names\n  reference_time_fetch: 2025-08-15T00:00:00.000000000+00:00\n  reference_url_data: https://ftp.ripe.net/ripe/asnames/asn.txt\n  reference_time_modification: 2025-08-14T10:49:01.000000000+00:00\n  reference_url_info: ", "to": 146211, "width": 2}, {"arrows": "to", "color": "#666666", "from": 8, "label": "NAME", "title": "Type: NAME\nProperties:\n  reference_org: RIPE NCC\n  reference_name: ripe.as_names\n  reference_time_fetch: 2025-08-15T00:00:00.000000000+00:00\n  reference_url_data: https://ftp.ripe.net/ripe/asnames/asn.txt\n  reference_time_modification: 2025-08-14T10:49:01.000000000+00:00\n  reference_url_info: ", "to": 201109, "width": 2}, {"arrows": "to", "color": "#666666", "from": 9, "label": "NAME", "title": "Type: NAME\nProperties:\n  reference_org: RIPE NCC\n  reference_name: ripe.as_names\n  reference_time_fetch: 2025-08-15T00:00:00.000000000+00:00\n  reference_url_data: https://ftp.ripe.net/ripe/asnames/asn.txt\n  reference_time_modification: 2025-08-14T10:49:01.000000000+00:00\n  reference_url_info: ", "to": 178510, "width": 2}]);
+
+                  nodeColors = {};
+                  allNodes = nodes.get({ returnType: "Object" });
+                  for (nodeId in allNodes) {
+                    nodeColors[nodeId] = allNodes[nodeId].color;
+                  }
+                  allEdges = edges.get({ returnType: "Object" });
+                  // adding nodes and edges to the graph
+                  data = {nodes: nodes, edges: edges};
+
+                  var options = {"physics": {"enabled": true, "solver": "forceAtlas2Based", "forceAtlas2Based": {"gravitationalConstant": -50, "centralGravity": 0.01, "springLength": 100, "springConstant": 0.08, "damping": 0.4}, "stabilization": {"iterations": 150}}, "interaction": {"hover": true, "tooltipDelay": 200}};
+
+                  
+
+
+                  
+
+                  network = new vis.Network(container, data, options);
+
+                  
+
+                  
+
+                  
+
+
+                  
+
+                  return network;
+
+              }
+              drawGraph();
+        </script>
+    </body>
+</html>
