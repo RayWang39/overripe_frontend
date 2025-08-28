@@ -45,18 +45,26 @@ Think of it as:
 # Find all AS nodes (automatically uses 'as' as alias)
 query = iyp.builder().find('AS')
 
-# Find specific AS by number
+# Find specific AS by number (still auto-uses 'as' alias)
 query = iyp.builder().find('AS', asn=15169)
 
 # Find with multiple filters
 query = iyp.builder().find('AS', asn=15169, name='Google')
 
-# NO NEED for manual aliases in most cases - auto-generated aliases work fine!
-# But if you want custom alias for clarity:
-query = iyp.builder().find('AS', alias='target_network', asn=15169)
+# Use custom alias when you have multiple nodes of same type:
+query = iyp.builder()
+    .find('AS', alias='customer', asn=216139)
+    .with_relationship('DEPENDS_ON', to='AS', alias='provider')
+    # Without manual aliases, system auto-generates: as, as_1, as_2, etc.
 ```
 
-**Important**: Each `iyp.builder()` call creates a fresh, independent query builder. There are no conflicts between different queries.
+**Automatic Alias Generation**: 
+- First AS node gets alias `'as'`
+- Second AS node gets alias `'as_1'`
+- Third AS node gets alias `'as_2'`, and so on
+- Same pattern for other types: `'country'`, `'country_1'`, `'country_2'`...
+
+**Important**: Each `iyp.builder()` call creates a fresh, independent query builder with its own alias namespace.
 
 SQL equivalent:
 ```sql
@@ -76,7 +84,7 @@ query = (iyp.builder()          # Start query
          .where(...)             # Filter results
          .return_fields([...])   # Specify output
          .limit(10)              # Limit results
-         .execute())             # Run query
+         .run())                 # Run query (or .execute())
 ```
 
 Each method adds a piece to your query, like building blocks!
@@ -88,24 +96,28 @@ Start your query by finding nodes of a specific type.
 
 **Parameters:**
 - `node_type`: Type of node ('AS', 'Organization', 'Country', etc.)
-- `alias`: Optional name to reference this node later
+- `alias`: Optional custom name (auto-generates if not provided)
 - `**filters`: Property filters (asn=15169, name='Google', etc.)
+
+**Alias Behavior:**
+- If no alias provided: Uses lowercase node type ('as', 'country', 'organization')
+- If alias conflicts: Auto-appends number ('as_1', 'as_2', etc.)
 
 **Examples:**
 ```python
-# Find all AS nodes
+# Auto-alias: 'as'
 .find('AS')
 
-# Find specific AS
+# Auto-alias: 'as' with filter
 .find('AS', asn=15169)
 
-# Find with alias
-.find('AS', alias='target_as', asn=15169)
+# Manual alias for clarity
+.find('AS', alias='google_as', asn=15169)
 
-# Find countries
+# Auto-alias: 'country'
 .find('Country', country_code='US')
 
-# Find organizations
+# Auto-alias: 'organization'
 .find('Organization', name='Google LLC')
 ```
 
@@ -116,8 +128,12 @@ Add relationships to traverse in the graph.
 - `relationship`: Relationship type ('DEPENDS_ON', 'MANAGED_BY', etc.)
 - `direction`: 'out' (→), 'in' (←), or 'both' (—)
 - `to`: Target node type
-- `alias`: Name for the target node
+- `alias`: Name for target node (auto-generates if not provided)
 - `**filters`: Filters for target node
+
+**Alias Auto-Generation:**
+- First instance: Uses lowercase of target type ('as', 'country')
+- Conflicts: Auto-increments ('as_1', 'as_2', etc.)
 
 **Examples:**
 ```python
@@ -346,7 +362,7 @@ Find IXP memberships.
 Run the query and return results as list of dictionaries.
 
 ```python
-results = query.execute()
+results = query.run()
 # Returns: [{'as.asn': 15169, 'as.name': 'Google'}, ...]
 ```
 
@@ -428,7 +444,7 @@ results = (iyp.builder()
            )
            .return_fields(['network.asn', 'network.name', 'provider.asn'])
            .limit(10)
-           .execute())
+           .run())
 
 for r in results:
     print(f"AS{r['network.asn']} uses AS{r['provider.asn']} as upstream")
@@ -441,7 +457,7 @@ upstreams = (iyp.builder()
              .find('AS', asn=216139)
              .upstream(hops=2, alias='provider_chain')
              .return_fields(['provider_chain.asn', 'provider_chain.name'])
-             .execute())
+             .run())
 
 print("2-hop upstream providers:")
 for u in upstreams:
@@ -458,7 +474,7 @@ stats = (iyp.builder()
          .return_fields(['c.country_code', 'c.name', 'count(a) as as_count'])
          .order_by(['-as_count'])
          .limit(10)
-         .execute())
+         .run())
 
 print("Top 10 countries by AS count:")
 for s in stats:
@@ -492,7 +508,7 @@ results = (iyp.builder()
            ])
            .order_by(['-customer_count'])
            .limit(20)
-           .execute())
+           .run())
 
 print("Top cloud providers by customer count:")
 for r in results:
@@ -547,7 +563,7 @@ query = query.with_organizations()
 query = query.where(Q('org.name').contains('Google'))
 
 # Execute
-results = query.execute()
+results = query.run()
 ```
 
 ### Pattern 2: Use Aliases for Clarity
@@ -570,7 +586,7 @@ print(cypher)
 print(f"Parameters: {params}")
 
 # If it looks good, execute
-results = query.execute()
+results = query.run()
 ```
 
 ## Tips and Best Practices
@@ -615,14 +631,14 @@ iyp = connect('bolt+s://iyp.christyquinn.com:7687', 'neo4j', 'lewagon25omgbbq')
 query1 = (iyp.builder()
           .find('AS', asn=15169)
           .with_organizations()
-          .execute())
+          .run())
 print(query1)
 
 # Cell 3: Query 2 (independent of previous)  
 query2 = (iyp.builder()
           .find('AS', asn=216139)
           .upstream()
-          .execute())
+          .run())
 print(query2)
 
 # Cell 4: See generated Cypher
