@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  iyp-api:
+    build: 
+      context: ./api
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - NEO4J_URI=bolt+s://iyp.christyquinn.com:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=lewagon25omgbbq
+      - API_KEY_ENABLED=false
+      - CORS_ORIGINS=*
+      - RATE_LIMIT_ENABLED=true
+    volumes:
+      - ./api:/app
+      - ./iyp_query:/app/iyp_query
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional Redis for caching (uncomment if needed)
+  # redis:
+  #   image: redis:7-alpine
+  #   ports:
+  #     - "6379:6379"
+  #   command: redis-server --appendonly yes
+  #   volumes:
+  #     - redis_data:/data
+  #   restart: unless-stopped
+
+# volumes:
+#   redis_data:
