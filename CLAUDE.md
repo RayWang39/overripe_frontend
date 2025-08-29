@@ -4,26 +4,36 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This repository contains two complementary components for querying the Neo4j Internet Yellow Pages (IYP) Database:
+This repository contains three interconnected components for querying and visualizing the Neo4j Internet Yellow Pages (IYP) Database:
 
-1. **IYP Query Library** (`iyp_query/`) - A Python library providing a SQL-like query builder interface
-2. **Method Chain Translation API** (`api/`) - A FastAPI service that translates method chains to Cypher queries
+1. **IYP Query Library** (`iyp_query/`) - Core Python library providing SQL-like query builder interface
+2. **Method Chain Translation API** (`api/`) - FastAPI service that translates method chains to Cypher queries
+3. **Streamlit Frontend** (`frontend/app.py`) - Interactive web interface for query execution and graph visualization
 
 The core mission is to allow technical users to query internet infrastructure data (ASNs, IP prefixes, organizations, IXPs, etc.) WITHOUT needing to learn Cypher query language.
 
-## Dual Architecture
+## Architecture Components
 
 ### 1. IYP Query Library (`iyp_query/`)
-A Python library with three query interfaces:
+Core Python library with three query interfaces:
 - **High-Level Domain-Specific Methods** - Pre-built queries for common network analysis
 - **SQL-like Query Builder** - Chainable methods with Q objects for complex boolean conditions  
 - **Raw Cypher Escape Hatch** - Direct Cypher execution for advanced users
 
 ### 2. Method Chain Translation API (`api/`)
-A FastAPI web service focused on **translation-only**:
+FastAPI web service for **translation-only**:
 - Converts method chains like `.find.with_organizations.upstream` into Cypher queries
 - Does NOT execute queries - only generates them for integration into other systems
 - Provides REST endpoints for programmatic Cypher generation
+- Runs on port 8001 by default
+
+### 3. Streamlit Frontend (`frontend/app.py`)
+Interactive web interface with two main features:
+- **Method Chain Translator** - Converts method chains to Cypher queries via API integration
+- **Query Visualizer** - Executes Cypher queries and displays results as interactive network graphs using PyVis
+- Integrates with the Translation API for method chain conversion
+- Direct connection to Neo4j for query execution and visualization
+- Runs on port 8501 by default
 
 ## Database Schema
 
@@ -53,37 +63,24 @@ api/                        # Web API for method chain translation
 ├── main.py                # FastAPI application entry point
 ├── config.py              # Configuration settings
 ├── models/                # Pydantic request/response models
-│   ├── translation.py     # Method chain translation models
-│   ├── requests.py        # General request models
-│   └── responses.py       # General response models
 ├── routers/               # API route handlers
-│   ├── translation.py     # Core method chain translation endpoints
-│   ├── query.py           # Legacy query endpoints
-│   ├── search.py          # Search endpoints
-│   └── admin.py           # Admin endpoints
 ├── services/              # Business logic layer
-│   ├── translation_service.py  # CypherTranslationService - core logic
-│   └── query_service.py         # Legacy query service
 ├── middleware/            # Custom middleware
-│   └── auth.py            # API key authentication
 ├── static/                # Web interface
-│   └── index.html         # Interactive test interface
 ├── docs/                  # API documentation
-│   ├── API_README.md      # Detailed API docs
-│   └── QUICK_START.md     # Quick reference
 ├── demos/                 # Example scripts
-│   └── method_chain_demo.py  # Interactive demo
 ├── scripts/               # Utility scripts
-│   └── run_api.sh         # Server startup script
-├── Dockerfile             # Container configuration
-├── docker-compose.yml     # Docker orchestration
 └── requirements.txt       # API-specific dependencies
+
+# Streamlit Frontend
+frontend/                   # Interactive web interface
+└── app.py                 # Main Streamlit application
 
 # Data and Documentation
 notebook/                   # Data analysis notebooks
 yellow_page_info/          # Database schema documentation
 RIPE_data/                 # Sample data files
-UK_ASNs.json              # UK ASN sample data
+testing_data/              # Test data and example queries
 requirements.txt          # Core library dependencies
 ```
 
@@ -117,15 +114,27 @@ python
 >>> print(cypher)
 ```
 
-### Method Chain Translation API Development
+### Running the Full Stack
+
 ```bash
-# Start the API server (from project root)
+# 1. Start the Translation API (required for Streamlit)
 cd api && PYTHONPATH=.. python -m uvicorn main:app --host 0.0.0.0 --port 8001 --reload
 
-# Or use the helper script
+# 2. Start the Streamlit Frontend (in a new terminal)
+streamlit run frontend/app.py
+
+# The system will be available at:
+# - Streamlit UI: http://localhost:8501
+# - API Documentation: http://localhost:8001/docs
+# - API Interactive Test: http://localhost:8001
+```
+
+### API-Only Development
+```bash
+# Using helper script
 ./api/scripts/run_api.sh
 
-# Or use Docker
+# Using Docker
 cd api && docker-compose up --build
 
 # Test the API
@@ -165,24 +174,36 @@ mypy iyp_query/ api/
 
 ## Key Architecture Concepts
 
-### Dual Service Model
-The API service (`api/`) uses the core library (`iyp_query/`) but serves a different purpose:
-- **Core Library**: Direct database execution with complex query building
-- **API Service**: Translation-only service for generating Cypher queries
+### Three-Layer Architecture
+1. **Core Library** (`iyp_query/`): Direct database execution with complex query building
+2. **Translation API** (`api/`): Translation-only service for generating Cypher queries
+3. **Streamlit Frontend** (`frontend/`): User interface combining translation and visualization
 
-### Method Chain Translation Flow
-1. API receives method chain string (e.g., `.find.with_organizations.upstream`)
-2. `CypherTranslationService` parses the chain into individual methods
-3. Uses `iyp_query` library to build the query with method chaining
-4. Calls `.to_cypher()` to generate Cypher without execution
-5. Returns structured response with Cypher, parameters, and explanations
+### Data Flow Patterns
+
+#### Method Chain Translation Flow
+1. User enters method chain in Streamlit UI
+2. Streamlit calls Translation API endpoint
+3. API's `CypherTranslationService` parses the chain
+4. Uses `iyp_query` library to build query with method chaining
+5. Returns Cypher query to Streamlit
+6. Streamlit can execute the query directly against Neo4j
+
+#### Direct Query Execution Flow
+1. User enters Cypher query in Streamlit
+2. Streamlit executes query directly against Neo4j
+3. Results processed and visualized using PyVis network graphs
+4. Data also displayed in tabular format
 
 ### Important Class Relationships
 ```python
-# API Flow
-MethodChainRequest -> CypherTranslationService -> IYPQueryBuilder -> Cypher Output
+# Translation Flow
+Streamlit -> MethodChainRequest -> API -> CypherTranslationService -> IYPQueryBuilder -> Cypher
 
-# Core Library Flow  
+# Execution Flow  
+Streamlit -> Neo4j Driver -> Query Results -> PyVis Visualization
+
+# Core Library Flow
 connect() -> IYPQuery -> IYPQueryBuilder -> QueryExecutor -> Results
 ```
 
@@ -256,28 +277,75 @@ curl -X POST "http://localhost:8001/api/v1/translate/method-chain" \
 - **Port conflicts**: Default API port is 8001, not 8000
 - **Method name mismatches**: Use `with_organizations` (plural), not `with_organization`
 
+## Streamlit Frontend Features
+
+### Method Chain Translator Section
+- Converts method chains to Cypher queries using the Translation API
+- Input fields for ASN and additional JSON parameters
+- "Use This Cypher Query" button to copy translated query to main query box
+- Comprehensive help section with examples
+
+### Query Visualizer Section  
+- Direct Cypher query execution against Neo4j
+- Interactive network graph visualization using PyVis
+- Automatic node coloring by type (AS=red, Organization=teal, Country=blue, etc.)
+- Tabular data display alongside graph
+- Handles nodes, relationships, paths, and aggregated results
+
+### Python Interpreter Section
+- Execute Python code on query results in real-time
+- Access to query results as pandas DataFrames, node lists, and relationship lists
+- Pre-imported libraries: pandas, numpy, collections, itertools
+- Three-tab interface: Code Editor, Data Preview, Available Variables
+- Captures print output and displays new DataFrames created
+- Includes example code snippets and variable documentation
+- Shows column statistics and data types
+
+### Visualization Capabilities
+- Processes Neo4j nodes, relationships, and path objects
+- Creates virtual nodes for scalar/aggregated data
+- Hover tooltips showing node/relationship properties
+- Force-directed graph layout for optimal viewing
+- Filters out "connecting" relationships for cleaner visualization
+
 ## Working Configuration
 
 ### Current Database Connection
-- **URI**: `bolt+s://iyp.christyquinn.com:7687` (SSL-enabled)
+- **URI**: `neo4j+s://iyp.christyquinn.com:7687` (SSL-enabled for Streamlit)
+- **URI**: `bolt+s://iyp.christyquinn.com:7687` (SSL-enabled for API/Library)
 - **Credentials**: `neo4j` / `lewagon25omgbbq`
 - **Connection verified working** as of current session
 
+### Service Ports
+- **Translation API**: http://localhost:8001
+- **Streamlit Frontend**: http://localhost:8501
+- **Jupyter Notebooks**: http://localhost:8888
+
 ### File Organization Status
 - ✅ **API files organized** in `/api/` directory structure
+- ✅ **Streamlit frontend** in `/frontend/app.py` with full integration
 - ✅ **Documentation created** with README files and quick start guides
 - ✅ **Demo scripts working** in `/api/demos/`
 - ✅ **Git cleanup completed** with proper `.gitignore` to prevent cache file conflicts
 - ✅ **Method chain translation fully functional**
+- ✅ **Graph visualization working** with PyVis integration
+- ✅ **Python interpreter integrated** for data analysis
 
 ### Known Working Commands
 ```bash
-# Start API (from project root)
+# Start full stack (two terminals needed)
+# Terminal 1: Start API
 cd api && PYTHONPATH=.. python -m uvicorn main:app --host 0.0.0.0 --port 8001 --reload
 
-# Test API
+# Terminal 2: Start Streamlit
+streamlit run frontend/app.py
+
+# Test API standalone
 cd api && python demos/method_chain_demo.py
 
 # Interactive query building
 python -c "from iyp_query import connect; iyp = connect('bolt+s://iyp.christyquinn.com:7687', 'neo4j', 'lewagon25omgbbq'); print('Connected successfully')"
+
+# Run Jupyter notebooks for data analysis
+jupyter notebook
 ```

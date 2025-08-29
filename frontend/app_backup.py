@@ -520,7 +520,7 @@ with st.expander("📝 Example Queries"):
     st.code("""
 # Nodes and relationships
 MATCH (n)-[r]->(m) RETURN n,r,m LIMIT 10
-""", language="cypher")
+
 
 # Example queries for network data
 with st.expander("📋 Common Network Queries"):
@@ -540,7 +540,7 @@ MATCH (prefix:Prefix)-[:COUNTRY]->(country:Country) RETURN prefix, country
 
 # Find specific AS
 MATCH (as:AS {asn: 216139})-[r]-(connected) RETURN as, r, connected
-""", language="cypher")
+    """, language="cypher")
 
 # Execute the query
 if st.button("Run Query", type="primary"):
