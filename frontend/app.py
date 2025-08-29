@@ -4,6 +4,7 @@ from pyvis.network import Network
 import streamlit.components.v1 as components
 import pandas as pd
 import json
+import requests
 from typing import Any, Dict, List, Set, Tuple
 
 # Database connection settings
@@ -14,7 +15,37 @@ PASSWORD = "lewagon25omgbbq"
 # Connect to Neo4j
 driver = GraphDatabase.driver(URI, auth=(USERNAME, PASSWORD))
 
+# Method Chain Translation API
+API_BASE = "http://localhost:8001"
 
+def translate_method_chain(method_chain: str, parameters: dict = None):
+    """Translate method chain to Cypher using the translation API"""
+    if parameters is None:
+        parameters = {}
+    
+    try:
+        response = requests.post(
+            f"{API_BASE}/api/v1/translate/method-chain",
+            json={
+                "method_chain": method_chain,
+                "parameters": parameters
+            },
+            headers={"Content-Type": "application/json"},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return {
+                "success": False,
+                "error": f"HTTP {response.status_code}: {response.text}"
+            }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Connection error: {str(e)}"
+        }
 def run_query(query, max_records=100):
     """Run a Cypher query against Neo4j and return results"""
     try:
@@ -327,6 +358,38 @@ def show_data_table(table_data):
 # Main Streamlit interface
 st.title("🌐 Network Infrastructure Visualizer")
 st.markdown("Query and visualize network data from Neo4j")
+# Method Chain Translation Section
+st.markdown("---")
+st.subheader("🔄 Method Chain Translator")
+st.markdown("Convert method chains like `.find.with_organizations.upstream` to Cypher queries")
+# Create columns for method chain input
+
+col1, col2, col3 = st.columns([3, 1, 2])
+with col1:
+    method_chain = st.text_input(
+        "Method Chain:",
+        placeholder=".find.with_organizations.upstream",
+        help="Enter a method chain starting with a dot"
+    )
+
+with col2:
+    asn_input = st.number_input(
+        "ASN:",
+        value=15169,
+        min_value=1,
+        max_value=999999,
+        help="Autonomous System Number (commonly needed)"
+    )
+
+with col3:
+    st.markdown("**Other Parameters (JSON):**")
+    parameters_text = st.text_area(
+        "Other Parameters:",
+        value='{"hops": 2, "limit": 10}',
+        height=50,
+        label_visibility="collapsed",
+        help="Additional parameters like hops, limit, relationship, etc."
+    )
 
 # Query input with max records control
 col1, col2 = st.columns([4, 1])
@@ -344,6 +407,120 @@ with col2:
         value=50,
         step=10
     )
+    
+# Translation button and results
+if st.button("🔄 Translate Method Chain", type="secondary"):
+    if method_chain.strip():
+        try:
+            # Parse other parameters
+            other_parameters = json.loads(parameters_text) if parameters_text.strip() else {}
+            
+            # Combine ASN with other parameters
+            parameters = {"asn": int(asn_input)}
+            parameters.update(other_parameters)
+            
+            # Call translation API
+            result = translate_method_chain(method_chain.strip(), parameters)
+            
+            if result["success"]:
+                st.success(f"✅ Translation successful: {result.get('method_chain', 'N/A')}")
+                
+                # Display the generated Cypher in a code block with copy button
+                cypher_code = result["cypher"]
+                st.code(cypher_code, language="cypher")
+                
+                # Add explanation if available
+                if result.get("explanation"):
+                    st.info(f"💡 **Explanation:** {result['explanation']}")
+                
+                # Button to copy to main query box
+                if st.button("📋 Use This Cypher Query", key="use_cypher"):
+                    st.session_state.translated_query = cypher_code
+                    st.success("Cypher query copied! Scroll down to see it in the main query box.")
+                    
+            else:
+                st.error(f"❌ Translation failed: {result.get('error', 'Unknown error')}")
+                
+        except json.JSONDecodeError:
+            st.error("❌ Invalid JSON in parameters. Please check the format.")
+        except Exception as e:
+            st.error(f"❌ Error: {str(e)}")
+    else:
+        st.warning("⚠️ Please enter a method chain")
+
+# Help section for method chains
+with st.expander("📚 Method Chain Help"):
+    st.markdown("""
+    **Available Method Chains:**
+    
+    - `.find` - Basic node lookup
+      - ASN: `15169` (Google)
+    
+    - `.find.with_organizations` - Include organization details
+      - ASN: `15169`
+    
+    - `.find.upstream` - Find upstream providers
+      - ASN: `15169`, Other params: `{"hops": 2}`
+    
+    - `.find.downstream` - Find downstream customers
+      - ASN: `15169`, Other params: `{"hops": 1}`
+    
+    - `.find.peers` - Find peering partners
+      - ASN: `15169`
+    
+    - `.find.with_relationship` - Custom relationship traversal
+      - ASN: `15169`, Other params: `{"relationship": "COUNTRY", "to": "Country"}`
+    
+    - `.find.limit` - Limit number of results
+      - ASN: `15169`, Other params: `{"limit": 10}`
+    
+    **Complex Chains:**
+    - `.find.with_organizations.upstream.limit`
+    - `.find.peers.limit`
+    - `.find.upstream.with_organizations`
+    
+    **Parameter Structure:**
+    - **ASN Field:** Always included automatically (e.g., 15169)
+    - **Other Parameters (JSON):** Optional additional parameters:
+    ```json
+    {
+      "hops": 2,
+      "limit": 10,
+      "relationship": "COUNTRY",
+      "to": "Country"
+    }
+    ```
+    
+    **Common ASN Examples:**
+    - `15169` - Google
+    - `32934` - Facebook/Meta
+    - `16509` - Amazon
+    - `13335` - Cloudflare
+    - `3356` - Level3/CenturyLink
+    - `174` - Cogent
+    """)
+
+st.markdown("---")
+
+# Query input - check if we have a translated query to use
+default_query = "MATCH (n)-[r]->(m) RETURN n,r,m LIMIT 10"
+if "translated_query" in st.session_state:
+    default_query = st.session_state.translated_query
+    # Clear it after using
+    del st.session_state.translated_query
+
+query = st.text_area(
+    "Enter Cypher Query:",
+    value=default_query,
+    height=100
+)
+
+# Example queries
+with st.expander("📝 Example Queries"):
+    st.code("""
+# Nodes and relationships
+MATCH (n)-[r]->(m) RETURN n,r,m LIMIT 10
+
 
 # Example queries for network data
 with st.expander("📋 Common Network Queries"):
@@ -426,6 +603,29 @@ with st.sidebar:
     - Max records: **{max_records}**
     - Connecting relationships: **Hidden**
     - Node labels: **Simplified**
+
+    **🔄 Method Chain Translator:**
+    - Convert simple chains like `.find.with_organizations` to Cypher
+    - ASN field is always included (e.g., 15169 for Google)
+    - Use "Other Parameters" for hops, limits, relationships, etc.
+    - Click "Use This Cypher Query" to copy to main query box
+    - Check the help section for all available methods
+    
+    **📊 Query Visualizer:**
+    - ✅ Nodes and relationships
+    - ✅ Path objects
+    - ✅ Collections/lists
+    - ✅ Property-only queries
+    - ✅ Mixed result types
+    - ✅ Complex aggregations
+
+    **🎨 Features:**
+    - 🔄 Method chain to Cypher translation
+    - 🎨 Auto-colored nodes by label
+    - 🔍 Hover for detailed info
+    - 📊 Always shows data table
+    - 🤖 Creates virtual graphs from scalars
+    - 🛠 Debug mode for troubleshooting
     """)
 
 st.markdown("---")
