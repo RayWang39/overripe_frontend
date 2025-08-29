@@ -1,5 +1,3 @@
-
-
 import streamlit as st
 from neo4j import GraphDatabase
 from pyvis.network import Network
@@ -9,14 +7,12 @@ import json
 import requests
 from typing import Any, Dict, List, Set, Tuple
 
-
-# CONNECT TO NEO4J DATABASE
-
+# Database connection settings
 URI = "neo4j+s://iyp.christyquinn.com:7687"
 USERNAME = "neo4j"
 PASSWORD = "lewagon25omgbbq"
 
-# Initialize driver
+# Connect to Neo4j
 driver = GraphDatabase.driver(URI, auth=(USERNAME, PASSWORD))
 
 # Method Chain Translation API
@@ -50,22 +46,72 @@ def translate_method_chain(method_chain: str, parameters: dict = None):
             "success": False,
             "error": f"Connection error: {str(e)}"
         }
-
-def run_query(query):
-    """Execute Cypher query and return results"""
+def run_query(query, max_records=100):
+    """Run a Cypher query against Neo4j and return results"""
     try:
         with driver.session() as session:
+            # Strip semicolons and whitespace
+            query = query.strip().rstrip(';')
+
+            # Add LIMIT to query if not already present
+            if "LIMIT" not in query.upper():
+                query = f"{query} LIMIT {max_records}"
+
             results = session.run(query)
             return list(results)
     except Exception as e:
-        st.error(f"Query execution failed: {str(e)}")
+        st.error(f"Query failed: {str(e)}")
         return []
 
-def extract_graph_elements(results):
-    """Extract nodes and relationships from any Neo4j query results"""
-    nodes = {}  # Use dict to avoid duplicates by ID
+def get_node_display_info(node):
+    """Get the display label and relevant properties for different node types"""
+    labels = list(node.labels) if hasattr(node, 'labels') else []
+    properties = dict(node) if hasattr(node, 'items') or hasattr(node, '__iter__') else {}
+
+    # Default values
+    display_label = "Unknown"
+    relevant_props = {}
+
+    # Handle different node types based on labels
+    if "Organization" in labels:
+        display_label = properties.get('name', f"Organization {node.id}")
+        relevant_props = {'name': properties.get('name', 'N/A')}
+
+    elif "AS" in labels:
+        asn = properties.get('asn', properties.get('number', 'Unknown'))
+        display_label = f"AS{asn}"
+        relevant_props = {'asn': asn}
+
+    elif "Country" in labels:
+        country_name = properties.get('name', properties.get('country', f"Country {node.id}"))
+        display_label = country_name
+        relevant_props = {'name': country_name}
+
+    elif "Prefix" in labels:
+        prefix = properties.get('prefix', properties.get('name', f"Prefix {node.id}"))
+        display_label = prefix
+        relevant_props = {'prefix': prefix}
+
+    elif "IXP" in labels:
+        ixp_name = properties.get('name', f"IXP {node.id}")
+        display_label = ixp_name
+        relevant_props = {'name': ixp_name}
+
+    else:
+        # For any other node types, use first label or generic name
+        if labels:
+            display_label = labels[0]
+            relevant_props = {'type': labels[0]}
+        else:
+            display_label = f"Node {node.id}"
+
+    return display_label, relevant_props, labels
+
+def extract_graph_data(results):
+    """Extract nodes and relationships from Neo4j query results"""
+    nodes = {}  # Store by ID to avoid duplicates
     relationships = []
-    scalar_data = []
+    table_data = []
 
     for record in results:
         row_data = {}
@@ -77,223 +123,176 @@ def extract_graph_elements(results):
                 row_data[key] = None
                 continue
 
-            # Handle Neo4j Node objects
+            # Handle Node objects
             if hasattr(value, "labels") and hasattr(value, "id"):
+                display_label, props, labels = get_node_display_info(value)
+
                 nodes[value.id] = {
                     'id': value.id,
-                    'labels': list(value.labels),
-                    'properties': dict(value)
+                    'display_label': display_label,
+                    'labels': labels,
+                    'relevant_properties': props,
+                    'all_properties': dict(value)
                 }
-                row_data[key] = f"Node({value.id})"
+                row_data[key] = display_label
 
-            # Handle Neo4j Relationship objects
+            # Handle Relationship objects
             elif hasattr(value, "type") and hasattr(value, "start_node") and hasattr(value, "end_node"):
-                relationships.append({
-                    'start_id': value.start_node.id,
-                    'end_id': value.end_node.id,
-                    'type': value.type,
-                    'properties': dict(value),
-                    'id': getattr(value, 'id', None)
-                })
-                # Also add the connected nodes if not already present
+                # Skip connecting result nodes as requested
+                rel_type = value.type.upper()
+                if rel_type not in ["RESULT", "CONNECTS", "LINKS"]:  # Add other connecting types as needed
+                    relationships.append({
+                        'start_id': value.start_node.id,
+                        'end_id': value.end_node.id,
+                        'type': value.type,
+                        'properties': dict(value)
+                    })
+
+                # Make sure we have the connected nodes
                 for node in [value.start_node, value.end_node]:
                     if node.id not in nodes:
+                        display_label, props, labels = get_node_display_info(node)
                         nodes[node.id] = {
                             'id': node.id,
-                            'labels': list(node.labels) if hasattr(node, 'labels') else [],
-                            'properties': dict(node) if hasattr(node, 'items') else {}
+                            'display_label': display_label,
+                            'labels': labels,
+                            'relevant_properties': props,
+                            'all_properties': dict(node)
                         }
-                row_data[key] = f"Relationship({value.type})"
 
-            # Handle Neo4j Path objects
+                row_data[key] = f"{value.type} relationship"
+
+            # Handle Path objects
             elif hasattr(value, "nodes") and hasattr(value, "relationships"):
-                # Extract nodes from path
+                # Add all nodes from the path
                 for node in value.nodes:
-                    nodes[node.id] = {
-                        'id': node.id,
-                        'labels': list(node.labels),
-                        'properties': dict(node)
-                    }
-                # Extract relationships from path
-                for rel in value.relationships:
-                    relationships.append({
-                        'start_id': rel.start_node.id,
-                        'end_id': rel.end_node.id,
-                        'type': rel.type,
-                        'properties': dict(rel),
-                        'id': getattr(rel, 'id', None)
-                    })
-                row_data[key] = f"Path({len(value.nodes)} nodes, {len(value.relationships)} rels)"
+                    if node.id not in nodes:
+                        display_label, props, labels = get_node_display_info(node)
+                        nodes[node.id] = {
+                            'id': node.id,
+                            'display_label': display_label,
+                            'labels': labels,
+                            'relevant_properties': props,
+                            'all_properties': dict(node)
+                        }
 
-            # Handle lists that might contain nodes/relationships
+                # Add all relationships from the path
+                for rel in value.relationships:
+                    rel_type = rel.type.upper()
+                    if rel_type not in ["RESULT", "CONNECTS", "LINKS"]:
+                        relationships.append({
+                            'start_id': rel.start_node.id,
+                            'end_id': rel.end_node.id,
+                            'type': rel.type,
+                            'properties': dict(rel)
+                        })
+
+                row_data[key] = f"Path with {len(value.nodes)} nodes"
+
+            # Handle lists of nodes/relationships
             elif isinstance(value, list):
-                list_items = []
+                list_display = []
                 for item in value:
-                    if hasattr(item, "labels") and hasattr(item, "id"):  # Node in list
+                    if hasattr(item, "labels") and hasattr(item, "id"):  # Node
+                        display_label, props, labels = get_node_display_info(item)
                         nodes[item.id] = {
                             'id': item.id,
-                            'labels': list(item.labels),
-                            'properties': dict(item)
+                            'display_label': display_label,
+                            'labels': labels,
+                            'relevant_properties': props,
+                            'all_properties': dict(item)
                         }
-                        list_items.append(f"Node({item.id})")
-                    elif hasattr(item, "type") and hasattr(item, "start_node"):  # Relationship in list
-                        relationships.append({
-                            'start_id': item.start_node.id,
-                            'end_id': item.end_node.id,
-                            'type': item.type,
-                            'properties': dict(item),
-                            'id': getattr(item, 'id', None)
-                        })
-                        list_items.append(f"Relationship({item.type})")
+                        list_display.append(display_label)
                     else:
-                        list_items.append(str(item))
-                row_data[key] = list_items if list_items else value
+                        list_display.append(str(item))
 
-            # Handle everything else (scalars, dicts, etc.)
+                row_data[key] = '; '.join(list_display) if list_display else str(value)
+
+            # Everything else (properties, scalars, etc.)
             else:
                 row_data[key] = value
 
-        scalar_data.append(row_data)
+        table_data.append(row_data)
 
-    return list(nodes.values()), relationships, scalar_data
+    return list(nodes.values()), relationships, table_data
 
-def create_virtual_graph_from_scalars(scalar_data, query):
-    """Create virtual nodes from scalar data when no graph objects are present"""
-    nodes = []
-    relationships = []
+def create_graph_visualization(nodes, relationships):
+    """Build the interactive graph using PyVis"""
+    if not nodes:
+        return False
 
-    # Try to detect if we can create meaningful virtual nodes
-    if not scalar_data:
-        return nodes, relationships
-
-    # Strategy 1: If query mentions specific node labels, create virtual nodes
-    query_lower = query.lower()
-    node_labels = []
-    common_labels = ['organization', 'person', 'company', 'user', 'product', 'location', 'city', 'country']
-
-    for label in common_labels:
-        if label in query_lower:
-            node_labels.append(label.title())
-
-    if not node_labels:
-        node_labels = ['Entity']
-
-    # Create virtual nodes from each row
-    for i, row in enumerate(scalar_data):
-        # Find the most likely identifier
-        identifier = None
-        display_props = {}
-
-        for key, value in row.items():
-            if value is not None:
-                # Common identifier fields
-                if any(id_field in key.lower() for id_field in ['id', 'name', 'title', 'email']):
-                    if isinstance(value, (str, int)) and not identifier:
-                        identifier = str(value)
-                display_props[key] = value
-
-        if not identifier:
-            identifier = f"Record_{i+1}"
-
-        # Create virtual node
-        virtual_node = {
-            'id': f"virtual_{i}",
-            'labels': node_labels,
-            'properties': display_props,
-            'virtual_identifier': identifier
-        }
-        nodes.append(virtual_node)
-
-    return nodes, relationships
-
-def visualize_graph(nodes, relationships, scalar_data, query):
-    """Create and display the graph visualization"""
-
-    # If no graph objects but we have data, try to create virtual graph
-    if not nodes and not relationships and scalar_data:
-        nodes, relationships = create_virtual_graph_from_scalars(scalar_data, query)
-
-    if not nodes and not relationships:
-        return False  # No graph to show
-
-    # Initialize PyVis network
+    # Create the network
     net = Network(
         height="600px",
         width="100%",
-        bgcolor="#1e1e1e",
+        bgcolor="#2b2b2b",
         font_color="white",
         directed=True
     )
 
-    # Add nodes
-    added_nodes = set()
+    # Add nodes with proper styling
     for node in nodes:
-        if node['id'] not in added_nodes:
-            # Determine node label
-            if node['labels']:
-                display_label = node['labels'][0]
-            else:
-                display_label = "Node"
+        # Create a simple tooltip with just the relevant info
+        tooltip_parts = [f"ID: {node['id']}"]
+        if node['labels']:
+            tooltip_parts.append(f"Type: {', '.join(node['labels'])}")
 
-            # For virtual nodes, use the identifier
-            if 'virtual_identifier' in node:
-                display_label = node['virtual_identifier']
+        for key, value in node['relevant_properties'].items():
+            tooltip_parts.append(f"{key}: {value}")
 
-            # Create hover title with all info
-            title_parts = [f"ID: {node['id']}"]
-            if node['labels']:
-                title_parts.append(f"Labels: {', '.join(node['labels'])}")
+        tooltip = '\n'.join(tooltip_parts)
 
-            if node['properties']:
-                title_parts.append("Properties:")
-                for k, v in node['properties'].items():
-                    if isinstance(v, list):
-                        v_str = '; '.join(str(x) for x in v)
-                    else:
-                        v_str = str(v)
-                    title_parts.append(f"  {k}: {v_str}")
+        # Color nodes by type (handle virtual nodes too)
+        color = "#4a9eff"  # Default blue
+        if node['labels']:
+            label = node['labels'][0]
+            if label == "AS":
+                color = "#ff6b6b"  # Red for AS
+            elif label == "Organization":
+                color = "#4ecdc4"  # Teal for organizations
+            elif label == "Country":
+                color = "#45b7d1"  # Light blue for countries
+            elif label == "Prefix":
+                color = "#96ceb4"  # Green for prefixes
+            elif label == "IXP":
+                color = "#feca57"  # Yellow for IXPs
+            elif label == "Data":
+                color = "#9b59b6"  # Purple for aggregated data
 
-            title = '\n'.join(title_parts)
+        # Make virtual nodes slightly different (dashed border effect via size variation)
+        node_size = 25 if node.get('is_virtual', False) else 30
 
-            # Color coding by label
-            color = "#97C2FC"  # Default blue
-            if node['labels']:
-                label_hash = hash(node['labels'][0]) % 10
-                colors = ["#97C2FC", "#FFAB91", "#C5E1A5", "#F8BBD9", "#FFE082",
-                         "#BCAAA4", "#B39DDB", "#80CBC4", "#FFCC02", "#FF8A65"]
-                color = colors[label_hash]
+        net.add_node(
+            node['id'],
+            label=node['display_label'],
+            title=tooltip,
+            color=color,
+            size=node_size
+        )
 
-            net.add_node(
-                node['id'],
-                label=display_label,
-                title=title,
-                color=color,
-                size=25
-            )
-            added_nodes.add(node['id'])
-
-    # Add relationships
+    # Add relationships with clean labels
+    added_edges = set()
     for rel in relationships:
-        if rel['start_id'] in added_nodes and rel['end_id'] in added_nodes:
-            # Create relationship title
-            title_parts = [f"Type: {rel['type']}"]
+        # Create unique edge identifier to avoid duplicates
+        edge_key = (rel['start_id'], rel['end_id'], rel['type'])
+
+        if edge_key not in added_edges:
+            # Simple relationship tooltip
+            rel_tooltip = f"Relationship: {rel['type']}"
             if rel['properties']:
-                title_parts.append("Properties:")
-                for k, v in rel['properties'].items():
-                    title_parts.append(f"  {k}: {str(v)}")
-            rel_title = '\n'.join(title_parts)
+                rel_tooltip += f"\nProperties: {len(rel['properties'])} items"
 
             net.add_edge(
                 rel['start_id'],
                 rel['end_id'],
                 label=rel['type'],
-                title=rel_title,
-                color="#666666",
-                arrows="to",
-                width=2
+                title=rel_tooltip,
+                color="#888888",
+                width=3
             )
+            added_edges.add(edge_key)
 
-    # Configure physics for better layout
+    # Set up the physics for a clean layout
     net.set_options("""
     var options = {
       "physics": {
@@ -302,64 +301,70 @@ def visualize_graph(nodes, relationships, scalar_data, query):
         "forceAtlas2Based": {
           "gravitationalConstant": -50,
           "centralGravity": 0.01,
-          "springLength": 100,
+          "springLength": 150,
           "springConstant": 0.08,
           "damping": 0.4
         },
-        "stabilization": {"iterations": 150}
+        "stabilization": {"iterations": 100}
       },
-      "interaction": {
-        "hover": true,
-        "tooltipDelay": 200
+      "edges": {
+        "smooth": {
+          "enabled": true,
+          "type": "continuous"
+        },
+        "font": {
+          "size": 12,
+          "color": "white"
+        }
+      },
+      "nodes": {
+        "font": {
+          "size": 14,
+          "color": "white"
+        }
       }
     }
     """)
 
-    # Save and display
-    net.save_graph("graph.html")
-    with open("graph.html", "r", encoding="utf-8") as f:
+    # Save and display the graph
+    net.save_graph("network_graph.html")
+    with open("network_graph.html", "r", encoding="utf-8") as f:
         components.html(f.read(), height=650)
 
     return True
 
-def display_table_results(scalar_data):
-    """Display results in table format"""
-    if not scalar_data:
+def show_data_table(table_data):
+    """Display the results as a clean data table"""
+    if not table_data:
         return
 
-    # Convert to DataFrame for better display
-    df_data = []
-    for row in scalar_data:
-        formatted_row = {}
+    # Clean up the data for display
+    clean_data = []
+    for row in table_data:
+        clean_row = {}
         for key, value in row.items():
             if isinstance(value, list):
-                # Handle arrays nicely
-                formatted_row[key] = '; '.join(str(x) for x in value) if value else ''
+                clean_row[key] = '; '.join(str(x) for x in value) if value else ''
             elif isinstance(value, dict):
-                # Handle objects
-                formatted_row[key] = json.dumps(value, default=str)
+                clean_row[key] = json.dumps(value, default=str)
             else:
-                formatted_row[key] = str(value) if value is not None else ''
-        df_data.append(formatted_row)
+                clean_row[key] = str(value) if value is not None else ''
+        clean_data.append(clean_row)
 
-    if df_data:
-        df = pd.DataFrame(df_data)
+    if clean_data:
+        df = pd.DataFrame(clean_data)
         st.dataframe(df, use_container_width=True)
 
-# -------------------------------
-# STREAMLIT UI
-# -------------------------------
-st.title("🔗 Neo4j Graph Integration")
-st.markdown("Handles any Neo4j query")
-
+# Main Streamlit interface
+st.title("🌐 Network Infrastructure Visualizer")
+st.markdown("Query and visualize network data from Neo4j")
 # Method Chain Translation Section
 st.markdown("---")
 st.subheader("🔄 Method Chain Translator")
 st.markdown("Convert method chains like `.find.with_organizations.upstream` to Cypher queries")
-
 # Create columns for method chain input
-col1, col2, col3 = st.columns([3, 1, 2])
 
+col1, col2, col3 = st.columns([3, 1, 2])
 with col1:
     method_chain = st.text_input(
         "Method Chain:",
@@ -386,6 +391,23 @@ with col3:
         help="Additional parameters like hops, limit, relationship, etc."
     )
 
+# Query input with max records control
+col1, col2 = st.columns([4, 1])
+with col1:
+    query = st.text_area(
+        "Cypher Query:",
+        value="MATCH (n)-[r]->(m) RETURN n,r,m",
+        height=100
+    )
+with col2:
+    max_records = st.number_input(
+        "Max Records:",
+        min_value=1,
+        max_value=1000,
+        value=50,
+        step=10
+    )
+    
 # Translation button and results
 if st.button("🔄 Translate Method Chain", type="secondary"):
     if method_chain.strip():
@@ -499,67 +521,89 @@ with st.expander("📝 Example Queries"):
 # Nodes and relationships
 MATCH (n)-[r]->(m) RETURN n,r,m LIMIT 10
 
-# Just nodes
-MATCH (o:Organization) RETURN o LIMIT 25
 
-# Properties only (will show table + virtual graph)
-MATCH (o:Organization) RETURN o.name, o.address_lines LIMIT 25
+# Example queries for network data
+with st.expander("📋 Common Network Queries"):
+    st.code("""
+# AS and their prefixes
+MATCH (as:AS)-[:ORIGINATE]->(prefix:Prefix) RETURN as, prefix
 
-# Paths
-MATCH p = (n)-[*1..3]-(m) RETURN p LIMIT 5
+# Organizations by country
+MATCH (org:Organization)-[:COUNTRY]->(country:Country) RETURN org, country
 
-# Complex aggregations
-MATCH (n:Person)-[r:WORKS_AT]->(o:Organization)
-RETURN o.name, collect(n.name) as employees, count(r) as employee_count
+# AS connections through IXPs
+MATCH (as1:AS)-[:MEMBER_OF]->(ixp:IXP)<-[:MEMBER_OF]-(as2:AS)
+RETURN as1, ixp, as2
 
-# Mixed results
-MATCH (p:Person)-[r]-(o:Organization)
-RETURN p, r.type as relationship_type, o.name as org_name
+# Prefix country relationships
+MATCH (prefix:Prefix)-[:COUNTRY]->(country:Country) RETURN prefix, country
+
+# Find specific AS
+MATCH (as:AS {asn: 216139})-[r]-(connected) RETURN as, r, connected
     """, language="cypher")
 
-# Execute query
-if st.button("🚀 Run Query", type="primary"):
+# Execute the query
+if st.button("Run Query", type="primary"):
     if not query.strip():
         st.error("Please enter a query")
     else:
-        with st.spinner("Executing query..."):
-            results = run_query(query.strip())
+        with st.spinner("Running query..."):
+            results = run_query(query.strip(), max_records)
 
             if not results:
-                st.warning("No results returned from query")
+                st.warning("No results found")
             else:
-                # Extract all possible elements
-                nodes, relationships, scalar_data = extract_graph_elements(results)
+                # Process the results
+                nodes, relationships, table_data = extract_graph_data(results)
 
-                # Display statistics
+                # Show stats
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    st.metric("📊 Records", len(results))
+                    st.metric("Records", len(results))
                 with col2:
-                    st.metric("🔵 Nodes", len(nodes))
+                    st.metric("Nodes", len(nodes))
                 with col3:
-                    st.metric("🔗 Relationships", len(relationships))
+                    st.metric("Relationships", len(relationships))
 
-                # Try to create graph visualization
-                graph_created = visualize_graph(nodes, relationships, scalar_data, query)
+                # Show the graph
+                graph_created = create_graph_visualization(nodes, relationships)
+                if graph_created:
+                    # Check if we used virtual nodes
+                    virtual_count = sum(1 for node in nodes if node.get('is_virtual', False))
+                    if virtual_count > 0:
+                        st.info(f"📊 Created {virtual_count} virtual nodes from aggregated data")
+                    st.success("Graph visualization ready!")
+                else:
+                    st.info("No graph data to display")
 
-                # Always show table data if available
-                if scalar_data:
-                    st.subheader("📋 Data Table")
-                    display_table_results(scalar_data)
+                # Show the data table
+                if table_data:
+                    st.subheader("Query Results")
+                    show_data_table(table_data)
 
-                # Show raw results in expandable section for debugging
-                with st.expander("🔍 Raw Query Results (Debug)"):
-                    for i, record in enumerate(results):
-                        st.write(f"**Record {i+1}:**")
-                        for key in record.keys():
-                            value = record.get(key)
-                            st.write(f"  - `{key}`: {type(value).__name__} = {repr(value)}")
-
-# Helpful tips
+# Sidebar with legend
 with st.sidebar:
-    st.header("💡 Tips")
+    st.header("🎨 Node Types")
     st.markdown("""
+    **Color Legend:**
+    - 🔴 **AS**: Autonomous Systems
+    - 🟢 **Prefix**: IP Prefixes
+    - 🔵 **Country**: Countries
+    - 🟡 **IXP**: Internet Exchange Points
+    - 🟦 **Organization**: Organizations
+
+    **Relationship Types:**
+    - ORIGINATE: AS → Prefix
+    - COUNTRY: Entity → Country
+    - MEMBER_OF: AS → IXP
+    """)
+
+    st.header("⚙️ Settings")
+    st.markdown(f"""
+    - Max records: **{max_records}**
+    - Connecting relationships: **Hidden**
+    - Node labels: **Simplified**
+
     **🔄 Method Chain Translator:**
     - Convert simple chains like `.find.with_organizations` to Cypher
     - ASN field is always included (e.g., 15169 for Google)
@@ -584,6 +628,5 @@ with st.sidebar:
     - 🛠 Debug mode for troubleshooting
     """)
 
-# Footer
 st.markdown("---")
-st.markdown("*Built with Streamlit, Neo4j, and PyVis*")
+st.caption("Network data visualization tool")
