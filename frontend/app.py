@@ -259,7 +259,7 @@ def create_graph_visualization(nodes, relationships):
             elif label == "Data":
                 color = "#9b59b6"  # Purple for aggregated data
 
-        # Make virtual nodes slightly different (dashed border effect via size variation)
+        # Make virtual nodes slightly different (dashed border effect with size variation)
         node_size = 25 if node.get('is_virtual', False) else 30
 
         net.add_node(
