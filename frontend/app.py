@@ -5,18 +5,19 @@ import streamlit.components.v1 as components
 import pandas as pd
 import json
 import requests
+import os
 from typing import Any, Dict, List, Set, Tuple
 
-# Database connection settings
-URI = "neo4j+s://iyp.christyquinn.com:7687"
-USERNAME = "neo4j"
-PASSWORD = "lewagon25omgbbq"
+# Database connection settings - using environment variables with fallbacks
+URI = os.getenv('NEO4J_URI', 'neo4j+s://iyp.christyquinn.com:7687')
+USERNAME = os.getenv('NEO4J_USERNAME', 'neo4j')
+PASSWORD = os.getenv('NEO4J_PASSWORD', 'lewagon25omgbbq')
 
 # Connect to Neo4j
 driver = GraphDatabase.driver(URI, auth=(USERNAME, PASSWORD))
 
-# Method Chain Translation API
-API_BASE = "http://localhost:8001"
+# Method Chain Translation API - using environment variable with fallback
+API_BASE = os.getenv('API_BASE_URL', 'http://localhost:8001')
 
 def translate_method_chain(method_chain: str, parameters: dict = None):
     """Translate method chain to Cypher using the translation API"""
