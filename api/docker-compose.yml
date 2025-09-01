@@ -7,13 +7,12 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
-      - NEO4J_URI=bolt+s://iyp.christyquinn.com:7687
-      - NEO4J_USER=neo4j
-      - NEO4J_PASSWORD=lewagon25omgbbq
-      - API_KEY_ENABLED=false
-      - CORS_ORIGINS=*
-      - RATE_LIMIT_ENABLED=true
+      - API_KEY_ENABLED=${API_KEY_ENABLED:-false}
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+      - RATE_LIMIT_ENABLED=${RATE_LIMIT_ENABLED:-true}
     volumes:
       - ./api:/app
       - ./iyp_query:/app/iyp_query

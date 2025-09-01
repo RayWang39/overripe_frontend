@@ -209,10 +209,28 @@ connect() -> IYPQuery -> IYPQueryBuilder -> QueryExecutor -> Results
 
 ## Database Configuration
 
-The core API connects to the live IYP database:
-- **URI**: bolt+s://iyp.christyquinn.com:7687
+### Environment Variables (Recommended for Deployment)
+The application now uses environment variables for secure configuration:
+
+```bash
+# Required environment variables
+NEO4J_URI=neo4j+s://iyp.christyquinn.com:7687
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=lewagon25omgbbq
+API_BASE_URL=http://localhost:8001
+```
+
+### Default Configuration (Development)
+If environment variables are not set, the system falls back to:
+- **URI**: neo4j+s://iyp.christyquinn.com:7687 (Streamlit) / bolt+s://iyp.christyquinn.com:7687 (API)
 - **Credentials**: neo4j / lewagon25omgbbq
 - **Connection**: SSL-enabled Neo4j Bolt protocol
+- **API Base**: http://localhost:8001
+
+### Setup Instructions
+1. Copy `.env.example` to `.env` in the root directory
+2. Copy `api/.env.example` to `api/.env` for API-specific configuration
+3. Update values as needed for your environment
 
 ## Critical Implementation Notes
 
@@ -343,9 +361,56 @@ streamlit run frontend/app.py
 # Test API standalone
 cd api && python demos/method_chain_demo.py
 
-# Interactive query building
-python -c "from iyp_query import connect; iyp = connect('bolt+s://iyp.christyquinn.com:7687', 'neo4j', 'lewagon25omgbbq'); print('Connected successfully')"
+# Interactive query building (using environment variables)
+python -c "from iyp_query import connect; import os; iyp = connect(os.getenv('NEO4J_URI', 'bolt+s://iyp.christyquinn.com:7687'), os.getenv('NEO4J_USERNAME', 'neo4j'), os.getenv('NEO4J_PASSWORD', 'lewagon25omgbbq')); print('Connected successfully')"
 
 # Run Jupyter notebooks for data analysis
 jupyter notebook
 ```
+
+## Deployment Configuration
+
+### Environment Variables Setup
+The application is now configured for secure deployment using environment variables:
+
+#### For Development:
+```bash
+# Copy example files and customize
+cp .env.example .env
+cp api/.env.example api/.env
+# Edit .env files with your configuration
+```
+
+#### For Streamlit Cloud:
+Add these secrets in your Streamlit Cloud dashboard:
+```toml
+[database]
+NEO4J_URI = "neo4j+s://iyp.christyquinn.com:7687"
+NEO4J_USERNAME = "neo4j"
+NEO4J_PASSWORD = "lewagon25omgbbq"
+
+[api]
+API_BASE_URL = "https://your-deployed-api.herokuapp.com"
+```
+
+#### For Heroku/Cloud Deployment:
+```bash
+# Set environment variables
+heroku config:set NEO4J_URI=neo4j+s://iyp.christyquinn.com:7687
+heroku config:set NEO4J_USERNAME=neo4j
+heroku config:set NEO4J_PASSWORD=lewagon25omgbbq
+heroku config:set API_BASE_URL=https://your-api-url.com
+```
+
+#### For Docker Deployment:
+```bash
+# Use .env file with docker-compose
+docker-compose --env-file .env up
+```
+
+### Security Notes
+- ✅ **Environment variables implemented** for all sensitive configuration
+- ✅ **Fallback values provided** for development convenience
+- ✅ **Example files created** (`.env.example`) for easy setup
+- ⚠️ **Never commit** actual `.env` files to version control
+- ⚠️ **Change default credentials** in production environments```
