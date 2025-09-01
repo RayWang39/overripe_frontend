@@ -389,23 +389,6 @@ with col3:
         help="Additional parameters like hops, limit, relationship, etc."
     )
 
-# Query input with max records control
-col1, col2 = st.columns([4, 1])
-with col1:
-    query = st.text_area(
-        "Cypher Query:",
-        value="MATCH (n)-[r]->(m) RETURN n,r,m",
-        height=100
-    )
-with col2:
-    max_records = st.number_input(
-        "Max Records:",
-        min_value=1,
-        max_value=1000,
-        value=50,
-        step=10
-    )
-
 # Translation button and results
 if st.button("🔄 Translate Method Chain", type="secondary"):
     if method_chain.strip():
@@ -423,8 +406,25 @@ if st.button("🔄 Translate Method Chain", type="secondary"):
             if result["success"]:
                 st.success(f"✅ Translation successful: {result.get('method_chain', 'N/A')}")
 
-                # Display the generated Cypher in a code block with copy button
+                # Get the generated Cypher and parameters
                 cypher_code = result["cypher"]
+                cypher_params = result.get("parameters", {})
+                
+                # Substitute parameters in the Cypher query
+                if cypher_params:
+                    # Replace parameter placeholders with actual values
+                    for param_name, param_value in cypher_params.items():
+                        # Handle different parameter formats ($param_0, $asn, etc.)
+                        placeholder = f"${param_name}"
+                        if isinstance(param_value, str):
+                            # For string values, add quotes
+                            replacement = f"'{param_value}'"
+                        else:
+                            # For numeric values, use as-is
+                            replacement = str(param_value)
+                        cypher_code = cypher_code.replace(placeholder, replacement)
+                
+                # Display the generated Cypher with substituted values
                 st.code(cypher_code, language="cypher")
 
                 # Add explanation if available
@@ -433,8 +433,8 @@ if st.button("🔄 Translate Method Chain", type="secondary"):
 
                 # Button to copy to main query box
                 if st.button("📋 Use This Cypher Query", key="use_cypher"):
-                    st.session_state.translated_query = cypher_code
-                    st.success("Cypher query copied! Scroll down to see it in the main query box.")
+                    st.session_state.query_text = cypher_code
+                    st.success("✅ Cypher query copied to the query box below!")
 
             else:
                 st.error(f"❌ Translation failed: {result.get('error', 'Unknown error')}")
@@ -498,17 +498,17 @@ with st.expander("📚 Method Chain Help"):
 
 st.markdown("---")
 
-# Query input - check if we have a translated query to use
-default_query = "MATCH (n)-[r]->(m) RETURN n,r,m LIMIT 10"
-if "translated_query" in st.session_state:
-    default_query = st.session_state.translated_query
-    # Clear it after using
-    del st.session_state.translated_query
+# Initialize query text in session state if not present
+if "query_text" not in st.session_state:
+    st.session_state.query_text = "MATCH (n)-[r]->(m) RETURN n,r,m LIMIT 10"
 
+# Query input using session state
 query = st.text_area(
     "Enter Cypher Query:",
-    value=default_query,
-    height=100
+    value=st.session_state.query_text,
+    height=100,
+    key="query_input",
+    on_change=lambda: setattr(st.session_state, 'query_text', st.session_state.query_input)
 )
 
 # Example queries
@@ -537,6 +537,16 @@ MATCH (prefix:Prefix)-[:COUNTRY]->(country:Country) RETURN prefix, country
 # Find specific AS
 MATCH (as:AS {asn: 216139})-[r]-(connected) RETURN as, r, connected
 """, language="cypher")
+
+# Max records control
+max_records = st.number_input(
+    "Max Records:",
+    min_value=1,
+    max_value=1000,
+    value=50,
+    step=10,
+    help="Maximum number of records to return from the query"
+)
 
 # Execute the query
 if st.button("Run Query", type="primary"):
