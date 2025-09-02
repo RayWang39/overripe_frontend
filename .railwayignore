@@ -1,0 +1,7 @@
+# Ignore frontend directory for Railway deployment
+frontend/
+*.ipynb
+notebook/
+testing_data/
+RIPE_data/
+yellow_page_info/
