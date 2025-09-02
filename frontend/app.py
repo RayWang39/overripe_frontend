@@ -410,7 +410,7 @@ if st.button("🔄 Translate Method Chain", type="secondary"):
                 # Get the generated Cypher and parameters
                 cypher_code = result["cypher"]
                 cypher_params = result.get("parameters", {})
-                
+
                 # Substitute parameters in the Cypher query
                 if cypher_params:
                     # Replace parameter placeholders with actual values
@@ -424,7 +424,7 @@ if st.button("🔄 Translate Method Chain", type="secondary"):
                             # For numeric values, use as-is
                             replacement = str(param_value)
                         cypher_code = cypher_code.replace(placeholder, replacement)
-                
+
                 # Display the generated Cypher with substituted values
                 st.code(cypher_code, language="cypher")
 
