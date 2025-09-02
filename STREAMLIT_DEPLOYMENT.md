@@ -43,8 +43,8 @@ NEO4J_URI = "neo4j+s://iyp.christyquinn.com:7687"
 NEO4J_USERNAME = "neo4j"
 NEO4J_PASSWORD = "lewagon25omgbbq"
 
-# API Configuration - REPLACE WITH YOUR RAILWAY URL
-API_BASE_URL = "https://your-railway-app.up.railway.app"
+# API Configuration - Railway Deployment URL
+API_BASE_URL = "https://overripefrontend-production.up.railway.app"
 ```
 
 ### Step 4: Deploy

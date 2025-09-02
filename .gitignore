@@ -119,3 +119,4 @@ raw_data
 
 # Windows metadata
 *Zone.Identifier
+.streamlit/secrets.toml
