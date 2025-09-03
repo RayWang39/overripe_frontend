@@ -22,7 +22,7 @@ def translate_method_chain(method_chain: str, parameters: dict = None):
     """Translate method chain to Cypher using the translation API"""
     if parameters is None:
         parameters = {}
-    
+
     try:
         response = requests.post(
             f"{API_BASE}/api/v1/translate/method-chain",
@@ -33,7 +33,7 @@ def translate_method_chain(method_chain: str, parameters: dict = None):
             headers={"Content-Type": "application/json"},
             timeout=10
         )
-        
+
         if response.status_code == 200:
             return response.json()
         else:
@@ -407,40 +407,40 @@ with col2:
         value=50,
         step=10
     )
-    
+
 # Translation button and results
 if st.button("🔄 Translate Method Chain", type="secondary"):
     if method_chain.strip():
         try:
             # Parse other parameters
             other_parameters = json.loads(parameters_text) if parameters_text.strip() else {}
-            
+
             # Combine ASN with other parameters
             parameters = {"asn": int(asn_input)}
             parameters.update(other_parameters)
-            
+
             # Call translation API
             result = translate_method_chain(method_chain.strip(), parameters)
-            
+
             if result["success"]:
                 st.success(f"✅ Translation successful: {result.get('method_chain', 'N/A')}")
-                
+
                 # Display the generated Cypher in a code block with copy button
                 cypher_code = result["cypher"]
                 st.code(cypher_code, language="cypher")
-                
+
                 # Add explanation if available
                 if result.get("explanation"):
                     st.info(f"💡 **Explanation:** {result['explanation']}")
-                
+
                 # Button to copy to main query box
                 if st.button("📋 Use This Cypher Query", key="use_cypher"):
                     st.session_state.translated_query = cypher_code
                     st.success("Cypher query copied! Scroll down to see it in the main query box.")
-                    
+
             else:
                 st.error(f"❌ Translation failed: {result.get('error', 'Unknown error')}")
-                
+
         except json.JSONDecodeError:
             st.error("❌ Invalid JSON in parameters. Please check the format.")
         except Exception as e:
@@ -452,33 +452,33 @@ if st.button("🔄 Translate Method Chain", type="secondary"):
 with st.expander("📚 Method Chain Help"):
     st.markdown("""
     **Available Method Chains:**
-    
+
     - `.find` - Basic node lookup
       - ASN: `15169` (Google)
-    
+
     - `.find.with_organizations` - Include organization details
       - ASN: `15169`
-    
+
     - `.find.upstream` - Find upstream providers
       - ASN: `15169`, Other params: `{"hops": 2}`
-    
+
     - `.find.downstream` - Find downstream customers
       - ASN: `15169`, Other params: `{"hops": 1}`
-    
+
     - `.find.peers` - Find peering partners
       - ASN: `15169`
-    
+
     - `.find.with_relationship` - Custom relationship traversal
       - ASN: `15169`, Other params: `{"relationship": "COUNTRY", "to": "Country"}`
-    
+
     - `.find.limit` - Limit number of results
       - ASN: `15169`, Other params: `{"limit": 10}`
-    
+
     **Complex Chains:**
     - `.find.with_organizations.upstream.limit`
     - `.find.peers.limit`
     - `.find.upstream.with_organizations`
-    
+
     **Parameter Structure:**
     - **ASN Field:** Always included automatically (e.g., 15169)
     - **Other Parameters (JSON):** Optional additional parameters:
@@ -490,7 +490,7 @@ with st.expander("📚 Method Chain Help"):
       "to": "Country"
     }
     ```
-    
+
     **Common ASN Examples:**
     - `15169` - Google
     - `32934` - Facebook/Meta
@@ -520,7 +520,7 @@ with st.expander("📝 Example Queries"):
     st.code("""
 # Nodes and relationships
 MATCH (n)-[r]->(m) RETURN n,r,m LIMIT 10
-
+""")
 
 # Example queries for network data
 with st.expander("📋 Common Network Queries"):
@@ -580,7 +580,7 @@ if st.button("Run Query", type="primary"):
                 if table_data:
                     st.subheader("Query Results")
                     show_data_table(table_data)
-                    
+
                     # Store results in session state for Python interpreter
                     st.session_state.last_results = results
                     st.session_state.last_table_data = table_data
@@ -596,7 +596,7 @@ st.markdown("Analyze query results with Python code")
 if 'last_table_data' in st.session_state and st.session_state.last_table_data:
     # Create tabs for different views
     tab1, tab2, tab3 = st.tabs(["📝 Code Editor", "📊 Data Preview", "📚 Available Variables"])
-    
+
     with tab1:
         # Python code editor
         python_code = st.text_area(
@@ -630,7 +630,7 @@ if nodes:
             height=400,
             help="Write Python code to analyze the query results"
         )
-        
+
         # Execute button
         if st.button("▶️ Run Python Code", type="secondary"):
             try:
@@ -638,11 +638,11 @@ if nodes:
                 import sys
                 from io import StringIO
                 import traceback
-                
+
                 # Capture output
                 old_stdout = sys.stdout
                 sys.stdout = StringIO()
-                
+
                 # Create execution namespace with available data
                 exec_globals = {
                     '__builtins__': __builtins__,
@@ -657,38 +657,38 @@ if nodes:
                     'collections': __import__('collections'),
                     'itertools': __import__('itertools'),
                 }
-                
+
                 # Execute the code
                 exec(python_code, exec_globals)
-                
+
                 # Get the output
                 output = sys.stdout.getvalue()
                 sys.stdout = old_stdout
-                
+
                 # Display output
                 if output:
                     st.success("✅ Code executed successfully")
                     st.code(output, language="text")
                 else:
                     st.info("Code executed but produced no output")
-                    
+
                 # Check if any new DataFrames were created
                 for key, value in exec_globals.items():
                     if isinstance(value, pd.DataFrame) and key not in ['df', '__builtins__']:
                         st.write(f"**{key}** (DataFrame):")
                         st.dataframe(value, use_container_width=True)
-                        
+
             except Exception as e:
                 sys.stdout = old_stdout
                 st.error(f"❌ Execution error: {str(e)}")
                 st.code(traceback.format_exc(), language="text")
-    
+
     with tab2:
         # Show data preview
         st.write("**Query Results DataFrame:**")
         df_preview = pd.DataFrame(st.session_state.last_table_data)
         st.dataframe(df_preview, use_container_width=True)
-        
+
         # Basic statistics
         st.write("**Basic Statistics:**")
         col1, col2, col3, col4 = st.columns(4)
@@ -700,7 +700,7 @@ if nodes:
             st.metric("Nodes", len(st.session_state.last_nodes))
         with col4:
             st.metric("Relationships", len(st.session_state.last_relationships))
-            
+
         # Column info
         st.write("**Column Information:**")
         col_info = pd.DataFrame({
@@ -710,14 +710,14 @@ if nodes:
             'Unique': [df_preview[col].nunique() for col in df_preview.columns]
         })
         st.dataframe(col_info, use_container_width=True)
-    
+
     with tab3:
         # Show available variables documentation
         st.markdown("""
         ### Available Variables
-        
+
         The following variables are available in your Python code:
-        
+
         #### Data Variables
         - **`df`**: Pandas DataFrame containing the query results in tabular format
         - **`nodes`**: List of dictionaries containing node information
@@ -725,41 +725,41 @@ if nodes:
         - **`relationships`**: List of dictionaries containing relationship information
           - Each relationship has: `start_id`, `end_id`, `type`, `properties`
         - **`results`**: Raw Neo4j query results (list of records)
-        
+
         #### Pre-imported Libraries
         - **`pd`**: pandas - Data manipulation and analysis
         - **`np`**: numpy - Numerical computing
         - **`json`**: JSON encoder/decoder
         - **`collections`**: Specialized container datatypes
         - **`itertools`**: Functions for creating iterators
-        
+
         ### Example Code Snippets
-        
+
         ```python
         # Group and count by a column
         grouped = df.groupby('column_name').size()
         print(grouped)
-        
+
         # Filter nodes by type
         as_nodes = [n for n in nodes if 'AS' in n.get('labels', [])]
         print(f"Found {len(as_nodes)} AS nodes")
-        
+
         # Create a new DataFrame
         new_df = pd.DataFrame(nodes)
         print(new_df.head())
-        
+
         # Network analysis
         from collections import Counter
         relationship_types = Counter(r['type'] for r in relationships)
         print("Relationship type counts:", relationship_types)
         ```
         """)
-        
+
         # Show example node and relationship structure
         if st.session_state.last_nodes:
             st.write("**Example Node Structure:**")
             st.json(st.session_state.last_nodes[0])
-            
+
         if st.session_state.last_relationships:
             st.write("**Example Relationship Structure:**")
             st.json(st.session_state.last_relationships[0])
@@ -786,12 +786,12 @@ with st.sidebar:
 
     st.header("Settings")
     st.markdown(f"**Max records:** {max_records}  \n**Connecting relationships:** Hidden  \n**Node labels:** Simplified")
-    
+
     st.write("**Method Chain Translator:**")
     st.write("- Convert simple chains like .find.with_organizations to Cypher")
     st.write("- ASN field is always included (e.g., 15169 for Google)")
     st.write("- Use Other Parameters for hops, limits, relationships, etc.")
-    
+
     st.write("**Query Visualizer:**")
     st.write("- Nodes and relationships")
     st.write("- Path objects and collections")
