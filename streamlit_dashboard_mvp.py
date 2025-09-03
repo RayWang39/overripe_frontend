@@ -35,7 +35,7 @@ def kpi_block(df: pd.DataFrame):
     c1.metric("Unique Addresses", f"{len(df):,}")
     c2.metric("Total Companies", f"{df['Companies_at_Address'].sum():,}")
     c3.metric("Avg Dormant Rate", f"{df['dormant_rate'].mean():.2%}")
-    c4.metric("Avg Micro Entity Rate", f"{df['micro_entity_rate'].mean():.2%}")
+    c4.metric("Avg No Accounts Rate", f"{df['no_accounts_rate'].mean():.2%}")
 
 
 # -----------------------------
@@ -43,31 +43,46 @@ def kpi_block(df: pd.DataFrame):
 # -----------------------------
 def sidebar_filters(df: pd.DataFrame) -> pd.DataFrame:
     st.sidebar.header("Filters")
+    
+    # Reset button at the top
+    if st.sidebar.button("🔄 Reset All Filters", width="stretch", type="primary"):
+        # Clear all session state keys related to filters
+        for key in list(st.session_state.keys()):
+            if key in ['address_search_input', 'company_search_input', 'search_type_radio', 
+                      'case_sensitive_checkbox', 'postcode_multiselect', 'rank_slider',
+                      'company_address_selector', 'address_selector']:
+                del st.session_state[key]
+        st.rerun()
 
     # Address search
     st.sidebar.subheader("🏠 Address Search")
+    # No default address search - let users search manually
+    
     address_search = st.sidebar.text_input(
         "Search addresses (street name, full address, etc.)",
         placeholder="e.g., 'SHELTON STREET', 'LONDON', 'WC2H'",
-        help="Search in both street address and full address fields"
+        help="Search in both street address and full address fields",
+        key="address_search_input"
     )
     
     # Search type selection
     search_type = st.sidebar.radio(
         "Search in:",
         ["Street Address Only", "Full Address Only", "Both (Street + Full)"],
-        index=2
+        index=2,
+        key="search_type_radio"
     )
     
     # Case sensitivity option
-    case_sensitive = st.sidebar.checkbox("Case sensitive search", value=False)
+    case_sensitive = st.sidebar.checkbox("Case sensitive search", value=False, key="case_sensitive_checkbox")
 
     # Company name search
     st.sidebar.subheader("🏢 Company Name Search")
     company_search = st.sidebar.text_input(
         "Search by company name",
         placeholder="e.g., 'GOOGLE', 'MICROSOFT', 'BRITISH'",
-        help="Find addresses where specific companies are registered"
+        help="Find addresses where specific companies are registered",
+        key="company_search_input"
     )
     
     if company_search:
@@ -75,8 +90,8 @@ def sidebar_filters(df: pd.DataFrame) -> pd.DataFrame:
 
     # Postcode filter - will be dynamically updated if specific address is selected
     st.sidebar.subheader("📮 Postcode Filter")
-    # Initial postcode selection
-    default_postcodes = sorted(df["PostCode_clean"].unique())[:10]
+    # Initial postcode selection - first 12 postcodes alphabetically  
+    default_postcodes = sorted(df["PostCode_clean"].unique())[:12]
 
     # Rank filter
     st.sidebar.subheader("📊 Rank Filter")
@@ -85,6 +100,7 @@ def sidebar_filters(df: pd.DataFrame) -> pd.DataFrame:
         int(df["rank"].min()),
         int(df["rank"].max()),
         (int(df["rank"].min()), int(df["rank"].max())),
+        key="rank_slider"
     )
 
     # Apply filters
@@ -120,16 +136,19 @@ def sidebar_filters(df: pd.DataFrame) -> pd.DataFrame:
         if len(fdf) > 1:
             st.sidebar.subheader("🎯 Select Specific Address")
             
-            # Create options for dropdown
-            address_options = ["All matching addresses"] + [
-                f"{row['Address_street']} ({row['PostCode_clean']}) - {row['Companies_at_Address']:,} companies"
-                for _, row in fdf.head(20).iterrows()  # Limit to 20 for performance
-            ]
+            # Create simple address options (avoid pandas serialization issues)
+            address_list = []
+            for _, row in fdf.head(20).iterrows():  # Limit to 20 for performance
+                address_str = f"{row['Address_street']} ({row['PostCode_clean']}) - {int(row['Companies_at_Address'])} companies"
+                address_list.append(address_str)
+            
+            address_options = ["All matching addresses"] + address_list
             
             selected_address = st.sidebar.selectbox(
                 "Choose an address:",
                 options=address_options,
-                help="Select a specific address to focus on, or keep 'All' to see all matches"
+                help="Select a specific address to focus on",
+                index=0
             )
             
             # Filter to selected address if not "All"
@@ -139,14 +158,16 @@ def sidebar_filters(df: pd.DataFrame) -> pd.DataFrame:
                 fdf = fdf[fdf["Address_street"] == selected_street]
                 st.sidebar.success(f"✅ Focused on: {selected_street}")
                 
-                # Extract the postcode for automatic filter update
-                if len(fdf) == 1:
+                # Automatically set the postcode for this address
+                if len(fdf) > 0:
                     selected_specific_postcode = fdf.iloc[0]['PostCode_clean']
                     st.sidebar.info(f"📮 Auto-selected postcode: {selected_specific_postcode}")
         elif len(fdf) == 1:
             st.sidebar.success(f"✅ Exact match: {fdf.iloc[0]['Address_street']}")
             selected_specific_postcode = fdf.iloc[0]['PostCode_clean']
             st.sidebar.info(f"📮 Auto-selected postcode: {selected_specific_postcode}")
+        else:
+            st.sidebar.info("📊 Showing all matching addresses")
     
     # Apply company name search filter
     if company_search:
@@ -168,6 +189,41 @@ def sidebar_filters(df: pd.DataFrame) -> pd.DataFrame:
         
         if len(fdf) > 0:
             st.sidebar.success(f"🏢 Found {len(fdf):,} addresses with companies matching '{company_search}'")
+            
+            # Add company address selection dropdown if multiple results
+            if len(fdf) > 1:
+                st.sidebar.subheader("🎯 Select Specific Company Address")
+                
+                # Create options for dropdown showing address and company count
+                company_address_options = ["All matching company addresses"] + [
+                    f"{str(row['Address_street'])} ({str(row['PostCode_clean'])}) - {int(row['Companies_at_Address']):,} companies"
+                    for _, row in fdf.head(20).iterrows()  # Limit to 20 for performance
+                ]
+                
+                selected_company_address = st.sidebar.selectbox(
+                    "Choose a company address:",
+                    options=company_address_options,
+                    help="Select a specific address where the company is registered",
+                    key="company_address_selector"
+                )
+                
+                # Filter to selected company address if not "All"
+                if selected_company_address != "All matching company addresses":
+                    # Extract the street address from the selected option
+                    selected_company_street = selected_company_address.split(" (")[0]
+                    fdf = fdf[fdf["Address_street"] == selected_company_street]
+                    st.sidebar.success(f"✅ Focused on company address: {selected_company_street}")
+                    
+                    # Extract the postcode for automatic filter update (same logic as address search)
+                    if len(fdf) == 1:
+                        if not selected_specific_postcode:  # Only set if not already set by address search
+                            selected_specific_postcode = fdf.iloc[0]['PostCode_clean']
+                            st.sidebar.info(f"📮 Auto-selected postcode: {selected_specific_postcode}")
+            elif len(fdf) == 1:
+                st.sidebar.success(f"✅ Exact company address match: {fdf.iloc[0]['Address_street']}")
+                if not selected_specific_postcode:  # Only set if not already set by address search
+                    selected_specific_postcode = fdf.iloc[0]['PostCode_clean']
+                    st.sidebar.info(f"📮 Auto-selected postcode: {selected_specific_postcode}")
         else:
             st.sidebar.error(f"🏢 No companies found matching '{company_search}'")
     
@@ -189,6 +245,7 @@ def sidebar_filters(df: pd.DataFrame) -> pd.DataFrame:
             "Postcodes",
             options=sorted(df["PostCode_clean"].unique()),
             default=default_postcodes,
+            key="postcode_multiselect"
         )
     
     # Apply the postcode filter
@@ -266,7 +323,7 @@ def sidebar_filters(df: pd.DataFrame) -> pd.DataFrame:
 
 def display_selected_address_info(fdf: pd.DataFrame):
     """Display detailed information about selected addresses"""
-    if len(fdf) == 1:
+    if len(fdf) >= 1:
         # Single address selected - show detailed info
         address = fdf.iloc[0]
         
@@ -305,7 +362,7 @@ def display_selected_address_info(fdf: pd.DataFrame):
                         'Company Name': companies[:display_count],
                         'Index': range(1, display_count + 1)
                     })
-                    st.dataframe(companies_df[['Index', 'Company Name']], use_container_width=True, hide_index=True)
+                    st.dataframe(companies_df[['Index', 'Company Name']], width="stretch", hide_index=True)
                     
                     if total_companies > 20:
                         st.info(f"... and {total_companies - 20:,} more companies. Use company name search to find specific companies.")
@@ -325,7 +382,7 @@ def display_selected_address_info(fdf: pd.DataFrame):
                                     'Company Name': filtered_companies[:50],  # Limit to 50 results
                                     'Match': range(1, min(51, len(filtered_companies) + 1))
                                 })
-                                st.dataframe(matches_df[['Match', 'Company Name']], use_container_width=True, hide_index=True)
+                                st.dataframe(matches_df[['Match', 'Company Name']], width="stretch", hide_index=True)
                                 if len(filtered_companies) > 50:
                                     st.info(f"Showing first 50 of {len(filtered_companies)} matches")
                             else:
@@ -428,7 +485,7 @@ def plot_dormancy_analysis(filtered_df: pd.DataFrame, full_df: pd.DataFrame):
             barmode='overlay',
             height=400
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     
     with col2:
         # Box plot for better outlier visualization
@@ -458,7 +515,7 @@ def plot_dormancy_analysis(filtered_df: pd.DataFrame, full_df: pd.DataFrame):
             yaxis_title="Dormancy Rate",
             height=400
         )
-        st.plotly_chart(fig_box, use_container_width=True)
+        st.plotly_chart(fig_box, width="stretch")
     
     # Statistics table
     st.markdown("### 📊 Statistical Summary")
@@ -473,7 +530,7 @@ def plot_dormancy_analysis(filtered_df: pd.DataFrame, full_df: pd.DataFrame):
                      f"{Q1:.2%}", f"{Q3:.2%}", f"{lower_bound_raw:.2%}", 
                      f"{lower_bound:.2%}", f"{upper_bound:.2%}"]
         })
-        st.dataframe(stats_all, use_container_width=True, hide_index=True)
+        st.dataframe(stats_all, width="stretch", hide_index=True)
     
     with col2_stats:
         if len(filtered_df) > 0:
@@ -488,7 +545,7 @@ def plot_dormancy_analysis(filtered_df: pd.DataFrame, full_df: pd.DataFrame):
                 'Value': [f"{selected_mean:.2%}", f"{selected_median:.2%}", 
                          f"{selected_std:.2%}", f"{len(filtered_df)}"]
             })
-            st.dataframe(stats_selected, use_container_width=True, hide_index=True)
+            st.dataframe(stats_selected, width="stretch", hide_index=True)
             
             # Outlier detection for selected addresses
             outliers = filtered_df[(filtered_df['dormant_rate'] < lower_bound) | 
@@ -496,7 +553,7 @@ def plot_dormancy_analysis(filtered_df: pd.DataFrame, full_df: pd.DataFrame):
             if len(outliers) > 0:
                 st.warning(f"⚠️ {len(outliers)} addresses in selection are outliers ({len(outliers)/len(filtered_df)*100:.1f}%)")
                 st.dataframe(outliers[['Address_street', 'PostCode_clean', 'dormant_rate', 'Companies_at_Address']].head(10), 
-                           use_container_width=True)
+                           width="stretch")
             else:
                 st.success("✅ No outliers detected in selected addresses")
     
@@ -510,7 +567,7 @@ def plot_dormancy_analysis(filtered_df: pd.DataFrame, full_df: pd.DataFrame):
         top_addresses['Is Outlier'] = top_addresses['dormant_rate'].apply(
             lambda x: '🔴 Yes' if x > upper_bound else '🟢 No'
         )
-        st.dataframe(top_addresses, use_container_width=True, hide_index=True)
+        st.dataframe(top_addresses, width="stretch", hide_index=True)
 
 
 def plot_plotly(df: pd.DataFrame):
@@ -525,7 +582,7 @@ def plot_plotly(df: pd.DataFrame):
         height=500,
         labels={"rank": "Address Rank", "Companies_at_Address": "Companies at Address"},
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 def plot_seaborn(df: pd.DataFrame):
@@ -590,14 +647,14 @@ def main():
 
     with tab1:
         st.subheader("Data Snapshot")
-        st.dataframe(fdf.head(200), use_container_width=True)
+        st.dataframe(fdf.head(200), width="stretch")
         st.markdown("**Grouped by postcode (mean)**")
         grouped = fdf.groupby("PostCode_clean").agg({
             "Companies_at_Address": ["mean", "max", "count"],
             "Companies_in_Postcode": "first"
         }).round(2)
         grouped.columns = ["Avg Companies/Address", "Max Companies/Address", "Total Addresses", "Companies in Postcode"]
-        st.dataframe(grouped, use_container_width=True)
+        st.dataframe(grouped, width="stretch")
 
     with tab2:
         plot_dormancy_analysis(fdf, df)
