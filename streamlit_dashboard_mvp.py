@@ -26,6 +26,16 @@ def load_data(path: str = "tuesday_mvp.csv") -> pd.DataFrame:
     df = pd.read_csv(path)
     return df
 
+@st.cache_data
+def load_baselines_data(path: str = "baselines_final.csv") -> pd.DataFrame:
+    import os
+    # Get the directory where this script is located
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    # Join with the filename to get absolute path
+    full_path = os.path.join(script_dir, path)
+    df = pd.read_csv(full_path)
+    return df
+
 
 # -----------------------------
 # KPI block
@@ -46,12 +56,10 @@ def sidebar_filters(df: pd.DataFrame) -> pd.DataFrame:
     
     # Reset button at the top
     if st.sidebar.button("🔄 Reset All Filters", width="stretch", type="primary"):
-        # Clear all session state keys related to filters
-        for key in list(st.session_state.keys()):
-            if key in ['address_search_input', 'company_search_input', 'search_type_radio', 
-                      'case_sensitive_checkbox', 'postcode_multiselect', 'rank_slider',
-                      'company_address_selector', 'address_selector']:
-                del st.session_state[key]
+        # Clear ALL session state keys to completely reset all filters and search functionality
+        st.session_state.clear()
+        # Set flag to show empty results after reset
+        st.session_state['reset_clicked'] = True
         st.rerun()
 
     # Address search
@@ -91,7 +99,15 @@ def sidebar_filters(df: pd.DataFrame) -> pd.DataFrame:
     # Postcode filter - will be dynamically updated if specific address is selected
     st.sidebar.subheader("📮 Postcode Filter")
     # Initial postcode selection - first 12 postcodes alphabetically  
-    default_postcodes = sorted(df["PostCode_clean"].unique())[:12]
+    # Check if this is a fresh page load (no session state) vs after reset button
+    # Fresh page load: show WC2H 9JQ default
+    # After reset: show empty (handled by session state flag)
+    if 'reset_clicked' in st.session_state:
+        # User clicked reset - show no results
+        default_postcodes = []
+    else:
+        # Fresh page load - show default postcode
+        default_postcodes = ["WC2H 9JQ"]
 
     # Rank filter
     st.sidebar.subheader("📊 Rank Filter")
@@ -626,12 +642,502 @@ def plot_matplotlib(df: pd.DataFrame):
 
 
 # -----------------------------
+# Documentation section
+# -----------------------------
+def show_documentation():
+    """Display documentation including baseline data"""
+    st.subheader("📚 Dashboard Documentation")
+    
+    # Introduction to Companies House and virtual addresses
+    st.markdown("""
+    ### 🏛️ About Companies House Data
+    
+    **Companies House** is the UK corporate register. Every active company must file annual accounts; each filing is tagged with an accounts type (e.g., full, micro-entity, dormant, no-accounts-filed). Those tags are what we aggregate into address-level signals.
+    
+    **What's a "virtual address" in our context?** A registered office that's primarily a mail-drop/formation-agent/forwarding service rather than a trading site. You often see hundreds or thousands of firms using the same address. We call these **hubs** and score them by how their filing mix compares to national baselines.
+    
+    ### 📊 Key Metrics Explained
+    
+    **😴 Dormant Companies**
+    - **Definition**: A company with no significant transactions in the year files dormant accounts (ultra-minimal, usually just a balance sheet). Nationally, dormants are roughly ~12% of companies.
+    - **Why we look at it**: An address with a dormant-rate far above baseline (e.g., 2–4×) is a classic indicator of mail-drop/shelf-company clustering and warrants review; rate + count keeps us from over-weighting tiny samples.
+    
+    **📋 "No Accounts Filed"**
+    - **What it means**: Either (a) the company is new and accounts aren't due yet, or (b) the deadline passed and they're overdue (which triggers penalties and, if persistent, potential strike-off).
+    - **Our metric**: `no_accounts_rate = (# companies at the address with "no accounts filed") / (total at the address)`. High rates can be normal at formation hubs with many fresh incorporations, but persistently high rates over time are a red flag for churny, non-compliant entities.
+    
+    **🎯 How We Use These**
+    We benchmark each hub's `dormant_rate` and `no_accounts_rate` against national baselines to surface outliers. "Well above baseline" + large volumes pushes a hub to the top of our triage queue.
+    """)
+    
+    st.divider()
+    
+    # Load and display baseline data
+    try:
+        baselines_df = load_baselines_data()
+        
+        st.markdown("### 📊 Baseline Data")
+        st.markdown("This table shows baseline metrics for different company filing types and their occurrence rates in the dataset:")
+        
+        # Format the baseline data for better display
+        display_df = baselines_df.copy()
+        
+        # Format rate column as percentage if it exists
+        if 'rate' in display_df.columns:
+            display_df['Rate (%)'] = (display_df['rate'] * 100).round(3)
+        
+        # Format count column with commas
+        if 'count' in display_df.columns:
+            display_df['Count'] = display_df['count'].apply(lambda x: f"{x:,}")
+            
+        # Format denominator column with commas  
+        if 'denominator' in display_df.columns:
+            display_df['Total'] = display_df['denominator'].apply(lambda x: f"{x:,}")
+        
+        # Select columns for display
+        display_cols = ['metric']
+        if 'Count' in display_df.columns:
+            display_cols.append('Count')
+        if 'Total' in display_df.columns:
+            display_cols.append('Total')
+        if 'Rate (%)' in display_df.columns:
+            display_cols.append('Rate (%)')
+            
+        st.dataframe(
+            display_df[display_cols], 
+            width="stretch",
+            hide_index=True
+        )
+        
+        st.markdown("### 📖 About This Dashboard")
+        st.markdown("""
+        **Purpose**: Analyze company registration data by address and postcode to identify patterns in business registration density and characteristics.
+        
+        **Key Features**:
+        - 🏠 **Address Search**: Find specific addresses or street names
+        - 🏢 **Company Search**: Search for companies by name
+        - 📮 **Postcode Filtering**: Filter data by postal codes
+        - 📊 **Rank Analysis**: Filter by address ranking metrics
+        - 📈 **Visualizations**: Interactive charts and graphs
+        - 🔄 **Reset Filters**: Clear all filters to start fresh
+        
+        **Data Sources**:
+        - Main dataset: Company registration addresses with postcode information
+        - Baseline data: Reference metrics for different filing types and company characteristics
+        """)
+        
+        # Add hub distribution visualization
+        st.markdown("### 📈 Hub Distribution Analysis")
+        create_hub_visualizations()
+        
+    except FileNotFoundError:
+        st.warning("⚠️ Baseline data file not found. Please ensure 'baselines_final.csv' is in the same directory.")
+    except Exception as e:
+        st.error(f"❌ Error loading baseline data: {str(e)}")
+
+def create_hub_visualizations():
+    """Create hub distribution and spike analysis visualizations"""
+    try:
+        # Configuration
+        MIN_HUB_SIZE = 100
+        HIST_XMAX = 10_000
+        HIST_BINS = 80
+        DELTA_DORM_PP = 20
+        ABS_DORM_MIN = 0.40
+        DELTA_NOACC_PP = 20
+        ABS_NOACC_MIN = 0.50
+        
+        # Load main data
+        df = load_data()
+        
+        # Helper functions
+        def to_num(s): 
+            return pd.to_numeric(s, errors="coerce")
+        
+        def get_baseline(metric_name: str):
+            try:
+                baselines_df = load_baselines_data()
+                if "rate" not in baselines_df.columns:
+                    baselines_df["count"] = to_num(baselines_df.get("count"))
+                    baselines_df["denominator"] = to_num(baselines_df.get("denominator"))
+                    baselines_df["rate"] = baselines_df["count"] / baselines_df["denominator"]
+                s = baselines_df.loc[baselines_df["metric"].str.lower() == metric_name.lower(), "rate"].dropna()
+                return float(s.iloc[0]) if len(s) else None
+            except:
+                return None
+        
+        # Prepare data
+        for c in ["Companies_at_Address", "dormant_rate", "no_accounts_rate", "dormant_number", "no_accounts_number"]:
+            if c in df.columns: 
+                df[c] = to_num(df[c])
+        
+        # Compute rates if missing but counts exist
+        if ("dormant_rate" not in df.columns or df["dormant_rate"].isna().all()) and \
+           {"dormant_number", "Companies_at_Address"}.issubset(df.columns):
+            denom = df["Companies_at_Address"].where(df["Companies_at_Address"] > 0, df["dormant_number"])
+            df["dormant_rate"] = (df["dormant_number"] / denom).clip(0, 1)
+        
+        if ("no_accounts_rate" not in df.columns or df["no_accounts_rate"].isna().all()) and \
+           {"no_accounts_number", "Companies_at_Address"}.issubset(df.columns):
+            denom = df["Companies_at_Address"].where(df["Companies_at_Address"] > 0, df["no_accounts_number"])
+            df["no_accounts_rate"] = (df["no_accounts_number"] / denom).clip(0, 1)
+        
+        # Create hubs dataset
+        hubs = df.loc[df["Companies_at_Address"].fillna(0) >= MIN_HUB_SIZE].copy()
+        hubs = hubs.sort_values("Companies_at_Address", ascending=False).reset_index(drop=True)
+        hubs["rank"] = np.arange(1, len(hubs) + 1)
+        
+        if len(hubs) == 0:
+            st.warning(f"⚠️ No hubs found with ≥{MIN_HUB_SIZE} companies")
+            return
+        
+        # 1) Hub Distribution Histogram
+        st.markdown("#### 🏢 Company Hub Distribution")
+        vals = hubs["Companies_at_Address"].dropna().astype(float)
+        tail_count = int((vals >= HIST_XMAX).sum())
+        tail_max = int(vals.max()) if len(vals) else 0
+        
+        fig, ax = plt.subplots(figsize=(10, 6))
+        clipped_vals = vals.clip(upper=HIST_XMAX)
+        display_vals = clipped_vals[vals < HIST_XMAX]
+        
+        ax.hist(display_vals, bins=HIST_BINS, alpha=0.7, color='skyblue', edgecolor='black')
+        ax.set_xlabel("Companies per Hub")
+        ax.set_ylabel("Number of Hubs")
+        ax.set_title(f"Distribution of Companies per Hub (≥{MIN_HUB_SIZE}) — 0 to {HIST_XMAX:,}")
+        
+        # Format x-axis with commas
+        ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:,.0f}'))
+        
+        if tail_count > 0:
+            ax.text(0.98, 0.95, f"{tail_count:,} hubs ≥ {HIST_XMAX:,}\n(max {tail_max:,})",
+                   transform=ax.transAxes, ha="right", va="top",
+                   bbox=dict(boxstyle="round,pad=0.3", facecolor="yellow", alpha=0.7))
+        
+        plt.tight_layout()
+        st.pyplot(fig, clear_figure=True)
+        
+        # Summary statistics
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Hubs", f"{len(hubs):,}")
+        with col2:
+            st.metric("Median Companies/Hub", f"{vals.median():.0f}")
+        with col3:
+            st.metric("Mean Companies/Hub", f"{vals.mean():.0f}")
+        with col4:
+            st.metric("Max Companies/Hub", f"{tail_max:,}")
+        
+        # 2) Dormant Rate Analysis (if available)
+        if "dormant_rate" in hubs.columns and not hubs["dormant_rate"].isna().all():
+            st.markdown("#### 😴 Dormant Rate vs Hub Rank")
+            
+            dormant_baseline = get_baseline("dormant")
+            plot_hubs = hubs.head(500).copy()  # Limit for performance
+            
+            fig, ax = plt.subplots(figsize=(12, 6))
+            
+            # Plot raw line
+            x_vals = plot_hubs["rank"]
+            y_vals = plot_hubs["dormant_rate"] * 100  # Convert to percentage
+            ax.plot(x_vals, y_vals, color='blue', alpha=0.7, linewidth=2, label='Dormant Rate')
+            
+            # Highlight spikes
+            if dormant_baseline is not None:
+                threshold = max(dormant_baseline + DELTA_DORM_PP/100.0, ABS_DORM_MIN)
+                spike_mask = plot_hubs["dormant_rate"] >= threshold
+                
+                if spike_mask.any():
+                    spike_x = x_vals[spike_mask]
+                    spike_y = y_vals[spike_mask]
+                    ax.scatter(spike_x, spike_y, color='red', s=50, alpha=0.8, 
+                             label=f'Spikes (≥{threshold*100:.0f}%)', zorder=5)
+                
+                # Add baseline reference line
+                ax.axhline(y=dormant_baseline*100, color='gray', linestyle='--', alpha=0.5,
+                          label=f'Baseline ({dormant_baseline*100:.1f}%)')
+            
+            ax.set_xlabel("Hub Rank (by company count)")
+            ax.set_ylabel("Dormant Rate (%)")
+            ax.set_title("Dormant Rate vs Hub Rank")
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            st.pyplot(fig, clear_figure=True)
+        
+        # 3) No Accounts Rate Analysis (if available)
+        if "no_accounts_rate" in hubs.columns and not hubs["no_accounts_rate"].isna().all():
+            st.markdown("#### 📋 No Accounts Filed Rate vs Hub Rank")
+            
+            noacc_baseline = get_baseline("no_accounts_filed")
+            plot_hubs = hubs.head(500).copy()  # Limit for performance
+            
+            fig, ax = plt.subplots(figsize=(12, 6))
+            
+            # Plot raw line
+            x_vals = plot_hubs["rank"]
+            y_vals = plot_hubs["no_accounts_rate"] * 100  # Convert to percentage
+            ax.plot(x_vals, y_vals, color='green', alpha=0.7, linewidth=2, label='No Accounts Rate')
+            
+            # Highlight spikes
+            if noacc_baseline is not None:
+                threshold = max(noacc_baseline + DELTA_NOACC_PP/100.0, ABS_NOACC_MIN)
+                spike_mask = plot_hubs["no_accounts_rate"] >= threshold
+                
+                if spike_mask.any():
+                    spike_x = x_vals[spike_mask]
+                    spike_y = y_vals[spike_mask]
+                    ax.scatter(spike_x, spike_y, color='orange', s=50, alpha=0.8, 
+                             label=f'Spikes (≥{threshold*100:.0f}%)', zorder=5)
+                
+                # Add baseline reference line
+                ax.axhline(y=noacc_baseline*100, color='gray', linestyle='--', alpha=0.5,
+                          label=f'Baseline ({noacc_baseline*100:.1f}%)')
+            
+            ax.set_xlabel("Hub Rank (by company count)")
+            ax.set_ylabel("No Accounts Filed Rate (%)")
+            ax.set_title("No Accounts Filed Rate vs Hub Rank")
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            st.pyplot(fig, clear_figure=True)
+        
+        # Add interactive hover visualizations
+        st.markdown("### 🎯 Interactive Analysis with Hover Details")
+        create_interactive_hub_analysis(hubs)
+            
+    except Exception as e:
+        st.error(f"❌ Error creating hub visualizations: {str(e)}")
+        st.write("Debug info:", str(e))
+
+def create_interactive_hub_analysis(hubs):
+    """Create interactive Plotly visualizations with hover tooltips"""
+    try:
+        # Configuration
+        MIN_HUB_SIZE = 100
+        DELTA_DORM_PP = 20
+        ABS_DORM_MIN = 0.40
+        DELTA_NOACC_PP = 20
+        ABS_NOACC_MIN = 0.50
+        
+        # Helper functions
+        def get_baseline(metric_name: str):
+            try:
+                baselines_df = load_baselines_data()
+                if "rate" not in baselines_df.columns:
+                    baselines_df["count"] = pd.to_numeric(baselines_df.get("count"), errors="coerce")
+                    baselines_df["denominator"] = pd.to_numeric(baselines_df.get("denominator"), errors="coerce")
+                    baselines_df["rate"] = baselines_df["count"] / baselines_df["denominator"]
+                s = baselines_df.loc[baselines_df["metric"].str.lower() == metric_name.lower(), "rate"].dropna()
+                return float(s.iloc[0]) if len(s) else None
+            except:
+                return None
+        
+        def highlight_mask(series, base, delta_pp, abs_min):
+            base = 0.0 if base is None else float(base)
+            thr = max(base + delta_pp/100.0, abs_min)
+            return series >= thr, thr
+        
+        def build_label_series(df):
+            if "FullAddress_best" in df.columns:
+                return df["FullAddress_best"].astype(str)
+            elif {"Address_street", "PostCode_clean"}.issubset(df.columns):
+                return (df["Address_street"].astype(str) + " | " + df["PostCode_clean"].astype(str))
+            else:
+                return df.index.astype(str)
+        
+        # Prepare data
+        plot_df = hubs.head(1000).copy()  # Limit for performance
+        labels = build_label_series(plot_df)
+        
+        # Interactive Dormant Rate Analysis
+        if "dormant_rate" in plot_df.columns and not plot_df["dormant_rate"].isna().all():
+            st.markdown("#### 😴 Interactive Dormant Rate Analysis")
+            
+            dorm_base = get_baseline("dormant")
+            x_vals = plot_df["rank"]
+            y_vals = plot_df["dormant_rate"]
+            companies = plot_df["Companies_at_Address"]
+            
+            # Create mask for highlighting outliers
+            mask, threshold = highlight_mask(y_vals, dorm_base, DELTA_DORM_PP, ABS_DORM_MIN)
+            
+            # Create Plotly figure
+            fig = go.Figure()
+            
+            # Main line plot
+            fig.add_trace(go.Scatter(
+                x=x_vals,
+                y=y_vals * 100,  # Convert to percentage
+                mode='lines',
+                name='Dormant Rate',
+                line=dict(color='blue', width=2),
+                hovertemplate='<b>Rank %{x}</b><br>' +
+                             'Dormant Rate: %{y:.1f}%<br>' +
+                             '<extra></extra>'
+            ))
+            
+            # Highlight outliers
+            outlier_indices = mask[mask].index
+            if len(outlier_indices) > 0:
+                outlier_x = x_vals[outlier_indices]
+                outlier_y = y_vals[outlier_indices] * 100
+                outlier_companies = companies[outlier_indices]
+                outlier_labels = labels[outlier_indices]
+                
+                fig.add_trace(go.Scatter(
+                    x=outlier_x,
+                    y=outlier_y,
+                    mode='markers',
+                    name=f'Outliers (≥{threshold*100:.0f}%)',
+                    marker=dict(color='orange', size=8),
+                    text=outlier_labels,
+                    customdata=outlier_companies,
+                    hovertemplate='<b>%{text}</b><br>' +
+                                 'Rank: %{x}<br>' +
+                                 'Companies: %{customdata:,}<br>' +
+                                 'Dormant Rate: %{y:.1f}%<br>' +
+                                 '<extra></extra>'
+                ))
+            
+            # Add baseline reference line
+            if dorm_base is not None:
+                fig.add_hline(
+                    y=dorm_base * 100,
+                    line_dash="dash",
+                    line_color="red",
+                    annotation_text=f"Baseline ({dorm_base*100:.1f}%)"
+                )
+            
+            fig.update_layout(
+                title=f"Interactive Dormant Rate by Hub Rank (≥{MIN_HUB_SIZE} companies)",
+                xaxis_title="Hub Rank (1 = largest by companies)",
+                yaxis_title="Dormant Rate (%)",
+                height=500,
+                hovermode='closest'
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # Interactive No Accounts Rate Analysis
+        if "no_accounts_rate" in plot_df.columns and not plot_df["no_accounts_rate"].isna().all():
+            st.markdown("#### 📋 Interactive No Accounts Filed Rate Analysis")
+            
+            noacc_base = get_baseline("no_accounts_filed")
+            x_vals = plot_df["rank"]
+            y_vals = plot_df["no_accounts_rate"]
+            companies = plot_df["Companies_at_Address"]
+            
+            # Create mask for highlighting outliers
+            mask, threshold = highlight_mask(y_vals, noacc_base, DELTA_NOACC_PP, ABS_NOACC_MIN)
+            
+            # Create Plotly figure
+            fig = go.Figure()
+            
+            # Main line plot
+            fig.add_trace(go.Scatter(
+                x=x_vals,
+                y=y_vals * 100,  # Convert to percentage
+                mode='lines',
+                name='No Accounts Rate',
+                line=dict(color='green', width=2),
+                hovertemplate='<b>Rank %{x}</b><br>' +
+                             'No Accounts Rate: %{y:.1f}%<br>' +
+                             '<extra></extra>'
+            ))
+            
+            # Highlight outliers
+            outlier_indices = mask[mask].index
+            if len(outlier_indices) > 0:
+                outlier_x = x_vals[outlier_indices]
+                outlier_y = y_vals[outlier_indices] * 100
+                outlier_companies = companies[outlier_indices]
+                outlier_labels = labels[outlier_indices]
+                
+                fig.add_trace(go.Scatter(
+                    x=outlier_x,
+                    y=outlier_y,
+                    mode='markers',
+                    name=f'Outliers (≥{threshold*100:.0f}%)',
+                    marker=dict(color='orange', size=8),
+                    text=outlier_labels,
+                    customdata=outlier_companies,
+                    hovertemplate='<b>%{text}</b><br>' +
+                                 'Rank: %{x}<br>' +
+                                 'Companies: %{customdata:,}<br>' +
+                                 'No Accounts Rate: %{y:.1f}%<br>' +
+                                 '<extra></extra>'
+                ))
+            
+            # Add baseline reference line
+            if noacc_base is not None:
+                fig.add_hline(
+                    y=noacc_base * 100,
+                    line_dash="dash",
+                    line_color="red",
+                    annotation_text=f"Baseline ({noacc_base*100:.1f}%)"
+                )
+            
+            fig.update_layout(
+                title=f"Interactive No Accounts Rate by Hub Rank (≥{MIN_HUB_SIZE} companies)",
+                xaxis_title="Hub Rank (1 = largest by companies)",
+                yaxis_title="No Accounts Filed Rate (%)",
+                height=500,
+                hovermode='closest'
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # Summary of outliers
+        st.markdown("#### 🚨 Outlier Summary")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if "dormant_rate" in plot_df.columns:
+                dorm_base = get_baseline("dormant")
+                mask, threshold = highlight_mask(plot_df["dormant_rate"], dorm_base, DELTA_DORM_PP, ABS_DORM_MIN)
+                outlier_count = mask.sum()
+                st.metric(
+                    "Dormant Rate Outliers", 
+                    f"{outlier_count:,}",
+                    help=f"Hubs with dormant rate ≥{threshold*100:.0f}%"
+                )
+        
+        with col2:
+            if "no_accounts_rate" in plot_df.columns:
+                noacc_base = get_baseline("no_accounts_filed")
+                mask, threshold = highlight_mask(plot_df["no_accounts_rate"], noacc_base, DELTA_NOACC_PP, ABS_NOACC_MIN)
+                outlier_count = mask.sum()
+                st.metric(
+                    "No Accounts Outliers", 
+                    f"{outlier_count:,}",
+                    help=f"Hubs with no accounts rate ≥{threshold*100:.0f}%"
+                )
+            
+    except Exception as e:
+        st.error(f"❌ Error creating interactive visualizations: {str(e)}")
+        st.write("Debug info:", str(e))
+
+# -----------------------------
 # Main app
 # -----------------------------
 
 def main():
-    st.title("🏢 Company Addresses Dashboard")
-    st.caption("Insights into companies per address and related metrics.")
+    # Top row with title and documentation button
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        st.title("🏢 Company Addresses Dashboard")
+        st.caption("Insights into companies per address and related metrics.")
+    with col2:
+        if st.button("📚 Documentation", type="secondary"):
+            st.session_state['show_documentation'] = not st.session_state.get('show_documentation', False)
+    
+    # Show documentation if toggled
+    if st.session_state.get('show_documentation', False):
+        show_documentation()
+        st.divider()
 
     df = load_data()
     fdf = sidebar_filters(df)
