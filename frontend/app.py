@@ -7,6 +7,53 @@ import json
 import requests
 import os
 from typing import Any, Dict, List, Set, Tuple
+import html  # for escaping
+
+import streamlit as st
+
+# Top padding
+st.markdown("<br>", unsafe_allow_html=True)
+
+# ASCII banner text
+banner_text = r"""
+   ____                  ____  ________  ______
+  / __ \_   _____  _____/ __ \/  _/ __ \/ ____/
+ / / / / | / / _ \/ ___/ /_/ // // /_/ / __/
+/ /_/ /| |/ /  __/ /  / _, _// // ____/ /___
+\____/ |___/\___/_/  /_/ |_/___/_/   /_____/
+"""
+
+# CSS for flicker and neon cyan
+st.markdown(
+    f"""
+    <style>
+    @keyframes flicker {{
+        0%   {{ opacity:1; }}
+        50%  {{ opacity:0.85; }}
+        100% {{ opacity:1; }}
+    }}
+    .banner-text {{
+        font-family: 'Courier New', Courier, monospace;
+        white-space: pre;
+        font-size: 80px;
+        color: #0ff;
+        text-align: center;
+        line-height: 1.1;
+        animation: flicker 1.5s infinite;
+    }}
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# Display the banner directly with class reference
+st.markdown(f"<p class='banner-text'>{banner_text}</p>", unsafe_allow_html=True)
+
+
+
+
+
+
 
 # Database connection settings - using environment variables with fallbacks
 URI = os.getenv('NEO4J_URI', 'neo4j+s://iyp.christyquinn.com:7687')
@@ -137,7 +184,7 @@ def extract_graph_data(results):
 
             # Handle Relationship objects
             elif hasattr(value, "type") and hasattr(value, "start_node") and hasattr(value, "end_node"):
-                # Skip connecting result nodes as requested
+                # Skip connecting result nodes
                 rel_type = value.type.upper()
                 if rel_type not in ["RESULT", "CONNECTS", "LINKS"]:  # Add other connecting types as needed
                     relationships.append({
@@ -216,121 +263,147 @@ def extract_graph_data(results):
     return list(nodes.values()), relationships, table_data
 
 def create_graph_visualization(nodes, relationships):
-    """Build the interactive graph using PyVis"""
+    """Build an interactive, dynamic PyVis graph with inline embed + download/open button"""
     if not nodes:
         return False
 
+    import random
+    from pyvis.network import Network
+    import streamlit.components.v1 as components
+    import streamlit as st
+
     # Create the network
     net = Network(
-        height="600px",
+        height="750px",
         width="100%",
-        bgcolor="#2b2b2b",
+        bgcolor="#1e1e1e",
         font_color="white",
         directed=True
     )
 
-    # Add nodes with proper styling
+    # Node shapes by type
+    node_shapes = {
+        "AS": "triangle",
+        "Organization": "box",
+        "Country": "ellipse",
+        "Prefix": "diamond",
+        "IXP": "star",
+        "Data": "dot"
+    }
+
+    # Add nodes with dynamic properties
     for node in nodes:
-        # Create a simple tooltip with just the relevant info
         tooltip_parts = [f"ID: {node['id']}"]
         if node['labels']:
             tooltip_parts.append(f"Type: {', '.join(node['labels'])}")
-
         for key, value in node['relevant_properties'].items():
             tooltip_parts.append(f"{key}: {value}")
-
         tooltip = '\n'.join(tooltip_parts)
 
-        # Color nodes by type (handle virtual nodes too)
-        color = "#4a9eff"  # Default blue
+        color = "#4a9eff"  # default
         if node['labels']:
             label = node['labels'][0]
             if label == "AS":
-                color = "#ff6b6b"  # Red for AS
+                color = "#ff6b6b"
             elif label == "Organization":
-                color = "#4ecdc4"  # Teal for organizations
+                color = "#4ecdc4"
             elif label == "Country":
-                color = "#45b7d1"  # Light blue for countries
+                color = "#45b7d1"
             elif label == "Prefix":
-                color = "#96ceb4"  # Green for prefixes
+                color = "#96ceb4"
             elif label == "IXP":
-                color = "#feca57"  # Yellow for IXPs
+                color = "#feca57"
             elif label == "Data":
-                color = "#9b59b6"  # Purple for aggregated data
+                color = "#9b59b6"
 
-        # Make virtual nodes slightly different (dashed border effect with size variation)
-        node_size = 25 if node.get('is_virtual', False) else 30
+        # Randomize node size for a more organic look
+        node_size = random.randint(25, 35) if not node.get('is_virtual', False) else 20
+
+        # Assign shape based on type
+        shape = node_shapes.get(label, "dot")
 
         net.add_node(
             node['id'],
             label=node['display_label'],
             title=tooltip,
             color=color,
-            size=node_size
+            size=node_size,
+            shape=shape
         )
 
-    # Add relationships with clean labels
+    # Add edges
     added_edges = set()
     for rel in relationships:
-        # Create unique edge identifier to avoid duplicates
         edge_key = (rel['start_id'], rel['end_id'], rel['type'])
-
         if edge_key not in added_edges:
-            # Simple relationship tooltip
             rel_tooltip = f"Relationship: {rel['type']}"
             if rel['properties']:
-                rel_tooltip += f"\nProperties: {len(rel['properties'])} items"
+                rel_tooltip += f"<br>Properties: {len(rel['properties'])} items"
 
             net.add_edge(
                 rel['start_id'],
                 rel['end_id'],
                 label=rel['type'],
                 title=rel_tooltip,
-                color="#888888",
-                width=3
+                color="#aaaaaa",
+                width=2,
+                arrows="to"
             )
             added_edges.add(edge_key)
 
-    # Set up the physics for a clean layout
+    # Force-directed physics for dynamic layout
     net.set_options("""
-    var options = {
-      "physics": {
-        "enabled": true,
-        "solver": "forceAtlas2Based",
-        "forceAtlas2Based": {
-          "gravitationalConstant": -50,
-          "centralGravity": 0.01,
-          "springLength": 150,
-          "springConstant": 0.08,
-          "damping": 0.4
-        },
-        "stabilization": {"iterations": 100}
-      },
-      "edges": {
-        "smooth": {
-          "enabled": true,
-          "type": "continuous"
-        },
-        "font": {
-          "size": 12,
-          "color": "white"
-        }
-      },
-      "nodes": {
-        "font": {
-          "size": 14,
-          "color": "white"
-        }
-      }
-    }
-    """)
+{
+  "physics": {
+    "enabled": true,
+    "solver": "forceAtlas2Based",
+    "forceAtlas2Based": {
+      "gravitationalConstant": -50,
+      "centralGravity": 0.01,
+      "springLength": 150,
+      "springConstant": 0.08,
+      "damping": 0.4,
+      "avoidOverlap": 0.5
+    },
+    "stabilization": { "iterations": 150 }
+  },
+  "edges": {
+    "smooth": { "enabled": true, "type": "dynamic" },
+    "font": { "size": 12, "color": "white" }
+  },
+  "nodes": {
+    "font": { "size": 14, "color": "white" }
+  }
+}
+""")
 
-    # Save and display the graph
-    net.save_graph("network_graph.html")
-    with open("network_graph.html", "r", encoding="utf-8") as f:
-        components.html(f.read(), height=650)
+
+    # Save graph to HTML
+    file_path = "network_graph.html"
+    net.save_graph(file_path)
+
+    # Inline embed
+    with open(file_path, "r", encoding="utf-8") as f:
+        components.html(f.read(), height=750, scrolling=True)
+
+    # Download button
+    with open(file_path, "rb") as f:
+        st.download_button(
+            label="📥 Download Graph as HTML",
+            data=f,
+            file_name="network_graph.html",
+            mime="text/html"
+        )
+
+    # Open in new tab link
+    st.markdown(
+        f'🔗 <a href="{file_path}" target="_blank">Open Graph in New Tab</a>',
+        unsafe_allow_html=True
+    )
 
     return True
+
+
 
 def show_data_table(table_data):
     """Display the results as a clean data table"""
@@ -778,18 +851,21 @@ else:
 with st.sidebar:
     st.header("🎨 Node Types")
     st.markdown("""
-    **Color Legend:**
-   - 🔴 **AS**: Autonomous Systems
-    - 🟢 **Prefix**: IP Prefixes
-    - 🔵 **Country**: Countries
-    - 🟡 **IXP**: Internet Exchange Points
-    - 🟦 **Organization**: Organizations
+    <div style="line-height: 2.2;">
+    <span style="color:#ff6b6b; font-size:22px;">▲</span> <b>AS</b>: Autonomous Systems<br>
+    <span style="color:#4ecdc4; font-size:22px;">■</span> <b>Organization</b>: Organizations<br>
+    <span style="color:#45b7d1; font-size:22px;">●</span> <b>Country</b>: Countries<br>
+    <span style="color:#96ceb4; font-size:22px;">◆</span> <b>Prefix</b>: IP Prefixes<br>
+    <span style="color:#feca57; font-size:22px;">★</span> <b>IXP</b>: Internet Exchange Points<br>
+    <span style="color:#9b59b6; font-size:22px;">●</span> <b>Data</b>: Data nodes
+    </div>
 
-    **Relationship Types:**
-    - ORIGINATE: AS -> Prefix
-    - COUNTRY: Entity -> Country
+    <br>
+    <b>Relationship Types:</b><br>
+    - ORIGINATE: AS -> Prefix<br>
+    - COUNTRY: Entity -> Country<br>
     - MEMBER_OF: AS -> IXP
-    """)
+    """, unsafe_allow_html=True)
 
     st.header("Settings")
     st.markdown(f"**Max records:** {max_records}  \n**Connecting relationships:** Hidden  \n**Node labels:** Simplified")

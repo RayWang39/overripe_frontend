@@ -2,6 +2,14 @@
 
 A Python-based query builder API that allows technical users to query the Neo4j Internet Yellow Pages (IYP) graph database containing internet infrastructure data (ASNs, IP prefixes, organizations, etc.) WITHOUT needing to learn Cypher query language.
 
+## Documentation
+
+- **[User Guides](docs/user-guides/)** - Getting started and tutorials
+- **[API Documentation](docs/api-docs/)** - API reference and integration guides
+- **[Development](docs/development/)** - Development setup and contribution guidelines
+- **[Deployment](docs/deployment/)** - Deployment configurations and guides
+- **[Examples](docs/examples/)** - Sample queries and use cases
+
 ## Features
 
 - **Three Query Interfaces**:
@@ -257,7 +265,7 @@ MIT License - see LICENSE file for details.
 
 ## Database Schema
 
-See the `yellow_page_info/` directory for complete documentation of:
+See the `data/schemas/yellow_page_info/` directory for complete documentation of:
 - Node types and their properties
 - Relationship types and semantics
 - Data source information

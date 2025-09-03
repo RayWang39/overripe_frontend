@@ -37,10 +37,10 @@ Interactive web interface with two main features:
 
 ## Database Schema
 
-### Node Types (from documentation)
+### Node Types (from data/schemas/yellow_page_info)
 Key node types include: AS, Organization, Prefix (with subtypes: BGPPrefix, GeoPrefix, RIRPrefix, RPKIPrefix, PeeringLAN, RDNSPrefix), IXP, Country, IP, HostName, DomainName, Facility, Tag, URL, and various ID nodes (CaidaIXID, CaidaOrgID, PeeringdbIXID, etc.)
 
-### Relationship Types (from documentation)
+### Relationship Types (from data/schemas/yellow_page_info)
 Critical relationships: DEPENDS_ON (upstream providers), MANAGED_BY (organization ownership), PEERS_WITH (AS peering), MEMBER_OF (IXP membership), COUNTRY (location), CATEGORIZED (tagging), ORIGINATE (BGP prefix origination)
 
 ## Project Structure
@@ -76,12 +76,24 @@ api/                        # Web API for method chain translation
 frontend/                   # Interactive web interface
 └── app.py                 # Main Streamlit application
 
-# Data and Documentation
+# Documentation
+docs/                       # Organized documentation
+├── user-guides/           # Getting started and tutorials
+├── api-docs/             # API reference docs
+├── development/          # Development guides
+├── deployment/           # Deployment configs
+└── examples/             # Example queries
+
+# Data
+data/                       # Organized data files
+├── samples/              # Sample datasets
+└── schemas/              # Database schemas
+    └── yellow_page_info/ # IYP database schema
+
+# Analysis
 notebook/                   # Data analysis notebooks
-yellow_page_info/          # Database schema documentation
-RIPE_data/                 # Sample data files
-testing_data/              # Test data and example queries
-requirements.txt          # Core library dependencies
+testing_data/              # Test data
+requirements.txt          # Core dependencies
 ```
 
 ## Development Commands
