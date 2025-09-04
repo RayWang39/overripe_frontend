@@ -1,12 +1,21 @@
-[theme]
-primaryColor = "#FF6B6B"
-backgroundColor = "#0E1117"
-secondaryBackgroundColor = "#262730"
-textColor = "#FAFAFA"
-
 [server]
 headless = true
-port = 8501
+enableCORS = true
+enableXsrfProtection = false
 
 [browser]
 gatherUsageStats = false
+serverAddress = "0.0.0.0"
+
+[theme]
+primaryColor = "#00f5ff"
+backgroundColor = "#0e1117"
+secondaryBackgroundColor = "#262730"
+textColor = "#fafafa"
+
+[runner]
+magicEnabled = true
+
+# Configuration for multipage apps
+[client]
+showErrorDetails = true
