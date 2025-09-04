@@ -22,7 +22,7 @@ PASSWORD = os.getenv('NEO4J_PASSWORD', 'lewagon25omgbbq')
 driver = GraphDatabase.driver(URI, auth=(USERNAME, PASSWORD))
 
 def run_page():
-    st.title("🧪 Demo Workflow")
+    st.title("📊 Demo Workflow")
     st.markdown("This page shows a simplified workflow with preset Cypher queries and allows custom queries.")
 
     # --- Custom Cypher Query Section ---
