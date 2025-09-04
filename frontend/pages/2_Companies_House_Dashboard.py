@@ -3,6 +3,8 @@
 
 import streamlit as st
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')  # Set non-GUI backend for cloud deployment
 import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
