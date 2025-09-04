@@ -73,7 +73,7 @@ PASSWORD = os.getenv('NEO4J_PASSWORD', 'lewagon25omgbbq')
 driver = GraphDatabase.driver(URI, auth=(USERNAME, PASSWORD))
 
 # Method Chain Translation API - using environment variable with fallback
-API_BASE = os.getenv('API_BASE_URL', 'http://localhost:8001')
+API_BASE = os.getenv('API_BASE_URL', 'https://overripefrontend-production.up.railway.app')
 
 def translate_method_chain(method_chain: str, parameters: dict = None):
     """Translate method chain to Cypher using the translation API"""
