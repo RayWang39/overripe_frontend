@@ -9,8 +9,15 @@ import os
 from typing import Any, Dict, List, Set, Tuple
 import html  # for escaping
 import importlib
-import streamlit as st
 import sys
+
+# Page config - must be first Streamlit command for multipage apps
+st.set_page_config(
+    page_title="OverRipe - IYP Query & Analytics",
+    page_icon="🔍",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 
 # Top padding

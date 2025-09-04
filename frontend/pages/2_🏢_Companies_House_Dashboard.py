@@ -11,13 +11,9 @@ import ast
 import os
 
 # -----------------------------
-# Page config
+# Page config - removed st.set_page_config() as it should only be in main app.py
+# This prevents conflicts in multipage apps on Streamlit Cloud
 # -----------------------------
-st.set_page_config(
-    page_title="Company Addresses Dashboard",
-    page_icon="🏢",
-    layout="wide",
-)
 
 # -----------------------------
 # Data loading

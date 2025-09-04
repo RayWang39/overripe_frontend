@@ -1,10 +1,19 @@
 import streamlit as st
 import sys, os, json, pandas as pd
 from neo4j import GraphDatabase
-from utils import run_query, extract_graph_data, create_graph_visualization, show_data_table
 
-# Make sure we can import from the parent folder if needed
+# Import utilities from parent directory
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+try:
+    from utils import run_query, extract_graph_data, create_graph_visualization, show_data_table
+except ImportError:
+    # Fallback for Streamlit Cloud deployment
+    try:
+        sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+        from utils import run_query, extract_graph_data, create_graph_visualization, show_data_table
+    except ImportError:
+        st.error("Unable to import required utilities. Please check the deployment configuration.")
+        st.stop()
 
 # Database connection
 URI = os.getenv('NEO4J_URI', 'neo4j+s://iyp.christyquinn.com:7687')
@@ -139,3 +148,10 @@ LIMIT 10;
                     show_data_table(table_data)
                 else:
                     st.warning("No results found for table query.")
+
+# Execute the page function when the script runs
+if __name__ == "__main__":
+    run_page()
+else:
+    # For Streamlit pages, the function needs to be called directly
+    run_page()
