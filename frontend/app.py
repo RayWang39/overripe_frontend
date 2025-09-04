@@ -54,9 +54,6 @@ st.markdown(f"<p class='banner-text'>{banner_text}</p>", unsafe_allow_html=True)
 
 
 
-
-
-
 # Database connection settings - using environment variables with fallbacks
 URI = os.getenv('NEO4J_URI', 'neo4j+s://iyp.christyquinn.com:7687')
 USERNAME = os.getenv('NEO4J_USERNAME', 'neo4j')
