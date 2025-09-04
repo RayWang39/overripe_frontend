@@ -3,9 +3,6 @@
 
 import streamlit as st
 import pandas as pd
-import matplotlib
-matplotlib.use('Agg')  # Set non-GUI backend for cloud deployment
-import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
@@ -608,22 +605,27 @@ def plot_plotly(df: pd.DataFrame):
 def plot_seaborn(df: pd.DataFrame):
     st.subheader("Top Addresses with Most Companies")
     top_addresses = df.nlargest(15, "Companies_at_Address")[["Address_street", "PostCode_clean", "Companies_at_Address"]]
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    bars = ax.barh(range(len(top_addresses)), top_addresses["Companies_at_Address"].values)
-    ax.set_yticks(range(len(top_addresses)))
-    ax.set_yticklabels([f"{row['Address_street'][:30]}... ({row['PostCode_clean']})"
-                        for _, row in top_addresses.iterrows()])
-    ax.set_xlabel("Number of Companies")
-    ax.set_title("Top 15 Addresses by Company Count")
-
-    # Add value labels on bars
-    for bar, val in zip(bars, top_addresses["Companies_at_Address"].values):
-        ax.text(val + 0.5, bar.get_y() + bar.get_height()/2, str(val),
-                va='center', fontsize=8)
-
-    plt.tight_layout()
-    st.pyplot(fig, clear_figure=True)
+    
+    # Create shortened labels for better display
+    top_addresses['short_label'] = [f"{row['Address_street'][:30]}{'...' if len(row['Address_street']) > 30 else ''} ({row['PostCode_clean']})"
+                                   for _, row in top_addresses.iterrows()]
+    
+    # Create horizontal bar chart with Plotly
+    fig = px.bar(
+        top_addresses, 
+        x="Companies_at_Address", 
+        y="short_label",
+        orientation='h',
+        title="Top 15 Addresses by Company Count",
+        labels={"Companies_at_Address": "Number of Companies", "short_label": "Address"},
+        text="Companies_at_Address"
+    )
+    
+    # Update layout for better appearance
+    fig.update_traces(texttemplate='%{text}', textposition='outside')
+    fig.update_layout(height=500, yaxis={'categoryorder':'total ascending'})
+    
+    st.plotly_chart(fig, use_container_width=True)
     return
 
 
@@ -637,12 +639,22 @@ def plot_matplotlib(df: pd.DataFrame):
     )
     bins = st.slider("Bins", min_value=10, max_value=60, value=30, step=5)
 
-    fig, ax = plt.subplots(figsize=(6, 4))
-    ax.hist(df[metric], bins=bins, alpha=0.85)
-    ax.set_xlabel(metric.replace("_", " ").title())
-    ax.set_ylabel("Count")
-    ax.set_title(f"Histogram of {metric.replace('_', ' ').title()}")
-    st.pyplot(fig, clear_figure=True)
+    # Create histogram with Plotly
+    fig = px.histogram(
+        df, 
+        x=metric, 
+        nbins=bins,
+        title=f"Histogram of {metric.replace('_', ' ').title()}",
+        labels={metric: metric.replace("_", " ").title(), "count": "Count"}
+    )
+    
+    fig.update_layout(
+        xaxis_title=metric.replace("_", " ").title(),
+        yaxis_title="Count",
+        showlegend=False
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
 
 
 # -----------------------------
@@ -801,25 +813,40 @@ def create_hub_visualizations():
         tail_count = int((vals >= HIST_XMAX).sum())
         tail_max = int(vals.max()) if len(vals) else 0
 
-        fig, ax = plt.subplots(figsize=(10, 6))
+        # Create histogram with Plotly
         clipped_vals = vals.clip(upper=HIST_XMAX)
         display_vals = clipped_vals[vals < HIST_XMAX]
 
-        ax.hist(display_vals, bins=HIST_BINS, alpha=0.7, color='skyblue', edgecolor='black')
-        ax.set_xlabel("Companies per Hub")
-        ax.set_ylabel("Number of Hubs")
-        ax.set_title(f"Distribution of Companies per Hub (≥{MIN_HUB_SIZE}) — 0 to {HIST_XMAX:,}")
+        fig = px.histogram(
+            x=display_vals,
+            nbins=HIST_BINS,
+            title=f"Distribution of Companies per Hub (≥{MIN_HUB_SIZE}) — 0 to {HIST_XMAX:,}",
+            labels={"x": "Companies per Hub", "count": "Number of Hubs"}
+        )
+        
+        fig.update_traces(marker_color='skyblue', marker_line_color='black', marker_line_width=1)
+        fig.update_layout(
+            xaxis_title="Companies per Hub",
+            yaxis_title="Number of Hubs",
+            showlegend=False,
+            height=400
+        )
 
-        # Format x-axis with commas
-        ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:,.0f}'))
-
+        # Add annotation for tail count if needed
         if tail_count > 0:
-            ax.text(0.98, 0.95, f"{tail_count:,} hubs ≥ {HIST_XMAX:,}\n(max {tail_max:,})",
-                   transform=ax.transAxes, ha="right", va="top",
-                   bbox=dict(boxstyle="round,pad=0.3", facecolor="yellow", alpha=0.7))
+            fig.add_annotation(
+                x=0.98, y=0.95,
+                xref="paper", yref="paper",
+                text=f"{tail_count:,} hubs ≥ {HIST_XMAX:,}<br>(max {tail_max:,})",
+                showarrow=False,
+                bgcolor="yellow",
+                bordercolor="black",
+                borderwidth=1,
+                xanchor="right",
+                yanchor="top"
+            )
 
-        plt.tight_layout()
-        st.pyplot(fig, clear_figure=True)
+        st.plotly_chart(fig, use_container_width=True)
 
         # Summary statistics
         col1, col2, col3, col4 = st.columns(4)
@@ -839,12 +866,18 @@ def create_hub_visualizations():
             dormant_baseline = get_baseline("dormant")
             plot_hubs = hubs.head(500).copy()  # Limit for performance
 
-            fig, ax = plt.subplots(figsize=(12, 6))
-
-            # Plot raw line
-            x_vals = plot_hubs["rank"]
-            y_vals = plot_hubs["dormant_rate"] * 100  # Convert to percentage
-            ax.plot(x_vals, y_vals, color='blue', alpha=0.7, linewidth=2, label='Dormant Rate')
+            # Create Plotly line plot
+            plot_hubs['y_vals'] = plot_hubs["dormant_rate"] * 100  # Convert to percentage
+            
+            fig = px.line(
+                plot_hubs, 
+                x="rank", 
+                y="y_vals",
+                title="Dormant Rate vs Hub Rank",
+                labels={"rank": "Hub Rank (by company count)", "y_vals": "Dormant Rate (%)"}
+            )
+            
+            fig.update_traces(line_color='blue', line_width=3, name='Dormant Rate')
 
             # Highlight spikes
             if dormant_baseline is not None:
@@ -852,23 +885,31 @@ def create_hub_visualizations():
                 spike_mask = plot_hubs["dormant_rate"] >= threshold
 
                 if spike_mask.any():
-                    spike_x = x_vals[spike_mask]
-                    spike_y = y_vals[spike_mask]
-                    ax.scatter(spike_x, spike_y, color='red', s=50, alpha=0.8,
-                             label=f'Spikes (≥{threshold*100:.0f}%)', zorder=5)
+                    spikes = plot_hubs[spike_mask]
+                    fig.add_scatter(
+                        x=spikes["rank"], 
+                        y=spikes["y_vals"],
+                        mode='markers',
+                        marker=dict(color='red', size=8),
+                        name=f'Spikes (≥{threshold*100:.0f}%)'
+                    )
 
                 # Add baseline reference line
-                ax.axhline(y=dormant_baseline*100, color='gray', linestyle='--', alpha=0.5,
-                          label=f'Baseline ({dormant_baseline*100:.1f}%)')
+                fig.add_hline(
+                    y=dormant_baseline*100, 
+                    line_dash="dash", 
+                    line_color="gray",
+                    annotation_text=f'Baseline ({dormant_baseline*100:.1f}%)'
+                )
 
-            ax.set_xlabel("Hub Rank (by company count)")
-            ax.set_ylabel("Dormant Rate (%)")
-            ax.set_title("Dormant Rate vs Hub Rank")
-            ax.legend()
-            ax.grid(True, alpha=0.3)
-
-            plt.tight_layout()
-            st.pyplot(fig, clear_figure=True)
+            fig.update_layout(
+                showlegend=True,
+                height=400,
+                xaxis=dict(showgrid=True),
+                yaxis=dict(showgrid=True)
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
 
         # 3) No Accounts Rate Analysis (if available)
         if "no_accounts_rate" in hubs.columns and not hubs["no_accounts_rate"].isna().all():
@@ -877,12 +918,18 @@ def create_hub_visualizations():
             noacc_baseline = get_baseline("no_accounts_filed")
             plot_hubs = hubs.head(500).copy()  # Limit for performance
 
-            fig, ax = plt.subplots(figsize=(12, 6))
-
-            # Plot raw line
-            x_vals = plot_hubs["rank"]
-            y_vals = plot_hubs["no_accounts_rate"] * 100  # Convert to percentage
-            ax.plot(x_vals, y_vals, color='green', alpha=0.7, linewidth=2, label='No Accounts Rate')
+            # Create Plotly line plot
+            plot_hubs['y_vals_noacc'] = plot_hubs["no_accounts_rate"] * 100  # Convert to percentage
+            
+            fig = px.line(
+                plot_hubs, 
+                x="rank", 
+                y="y_vals_noacc",
+                title="No Accounts Filed Rate vs Hub Rank",
+                labels={"rank": "Hub Rank (by company count)", "y_vals_noacc": "No Accounts Filed Rate (%)"}
+            )
+            
+            fig.update_traces(line_color='green', line_width=3, name='No Accounts Rate')
 
             # Highlight spikes
             if noacc_baseline is not None:
@@ -890,23 +937,31 @@ def create_hub_visualizations():
                 spike_mask = plot_hubs["no_accounts_rate"] >= threshold
 
                 if spike_mask.any():
-                    spike_x = x_vals[spike_mask]
-                    spike_y = y_vals[spike_mask]
-                    ax.scatter(spike_x, spike_y, color='orange', s=50, alpha=0.8,
-                             label=f'Spikes (≥{threshold*100:.0f}%)', zorder=5)
+                    spikes = plot_hubs[spike_mask]
+                    fig.add_scatter(
+                        x=spikes["rank"], 
+                        y=spikes["y_vals_noacc"],
+                        mode='markers',
+                        marker=dict(color='orange', size=8),
+                        name=f'Spikes (≥{threshold*100:.0f}%)'
+                    )
 
                 # Add baseline reference line
-                ax.axhline(y=noacc_baseline*100, color='gray', linestyle='--', alpha=0.5,
-                          label=f'Baseline ({noacc_baseline*100:.1f}%)')
+                fig.add_hline(
+                    y=noacc_baseline*100, 
+                    line_dash="dash", 
+                    line_color="gray",
+                    annotation_text=f'Baseline ({noacc_baseline*100:.1f}%)'
+                )
 
-            ax.set_xlabel("Hub Rank (by company count)")
-            ax.set_ylabel("No Accounts Filed Rate (%)")
-            ax.set_title("No Accounts Filed Rate vs Hub Rank")
-            ax.legend()
-            ax.grid(True, alpha=0.3)
-
-            plt.tight_layout()
-            st.pyplot(fig, clear_figure=True)
+            fig.update_layout(
+                showlegend=True,
+                height=400,
+                xaxis=dict(showgrid=True),
+                yaxis=dict(showgrid=True)
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
 
         # Add interactive hover visualizations
         st.markdown("### 🎯 Interactive Analysis with Hover Details")
