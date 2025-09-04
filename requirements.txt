@@ -1,17 +1,20 @@
-# Core dependencies for IYP Query API
+# Core dependencies for both IYP Query API and Companies House Dashboard
 neo4j>=5.0.0,<6.0.0
 pandas>=1.3.0
+numpy>=1.20.0
 tabulate>=0.9.0
-streamlit
-matplotlib
-plotly
-pyvis
+streamlit>=1.28.0
+plotly>=5.0.0
+pyvis>=0.3.0
+
+# Additional dependencies for Companies House Dashboard
+# ast, os are built-in Python modules (no installation needed)
 
 # Optional dependencies for enhanced functionality
 # Uncomment if needed:
 # jupyter>=1.0.0  # For Jupyter notebook support
-# matplotlib>=3.5.0  # For plotting network graphs
 # networkx>=2.8.0  # For graph analysis
+# seaborn>=0.11.0  # For advanced statistical visualizations
 
 # Development dependencies (for testing and development)
 # pytest>=6.0.0

@@ -2,7 +2,6 @@ import streamlit as st
 import os
 import pandas as pd
 from neo4j import GraphDatabase
-from utils import run_query, extract_graph_data, create_graph_visualization, show_data_table
 
 # Database connection
 URI = os.getenv('NEO4J_URI', 'neo4j+s://iyp.christyquinn.com:7687')
