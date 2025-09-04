@@ -1,10 +1,8 @@
 import streamlit as st
-import sys, os, json, pandas as pd
+import os
+import pandas as pd
 from neo4j import GraphDatabase
 from utils import run_query, extract_graph_data, create_graph_visualization, show_data_table
-
-# Make sure we can import from the parent folder if needed
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 # Database connection
 URI = os.getenv('NEO4J_URI', 'neo4j+s://iyp.christyquinn.com:7687')
@@ -13,129 +11,189 @@ PASSWORD = os.getenv('NEO4J_PASSWORD', 'lewagon25omgbbq')
 driver = GraphDatabase.driver(URI, auth=(USERNAME, PASSWORD))
 
 def run_page():
-    st.title("🧪 Demo Workflow")
-    st.markdown("This page shows a simplified workflow with preset Cypher queries and allows custom queries.")
-
-    # --- Custom Cypher Query Section ---
-    st.subheader("🔄 Custom Cypher Query")
-    query_input = st.text_area(
-        "Enter your Cypher query here:",
-        placeholder="MATCH (n) RETURN n LIMIT 10",
-        height=100,
-        key="custom_query_input"
+    # Neon ASCII banner
+    st.markdown("<br>", unsafe_allow_html=True)
+    banner_text = r"""
+   ____                  ____  ________  ______
+  / __ \_   _____  _____/ __ \/  _/ __ \/ ____/
+ / / / / | / / _ \/ ___/ /_/ // // /_/ / __/
+/ /_/ /| |/ /  __/ /  / _, _// // ____/ /___
+\____/ |___/\___/_/  /_/ |_/___/_/   /_____/
+    """
+    st.markdown(
+        f"""
+        <style>
+        @keyframes flicker {{
+            0%   {{ opacity:1; }}
+            50%  {{ opacity:0.85; }}
+            100% {{ opacity:1; }}
+        }}
+        .banner-text {{
+            font-family: 'Courier New', Courier, monospace;
+            white-space: pre;
+            font-size: 80px;
+            color: #0ff;
+            text-align: center;
+            line-height: 1.1;
+            animation: flicker 1.5s infinite;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True
     )
+    st.markdown(f"<p class='banner-text'>{banner_text}</p>", unsafe_allow_html=True)
 
-    max_records_input = st.number_input(
-        "Max Records:",
+    st.title("🧪 Demo Workflow")
+    st.markdown("This page lets you run Cypher queries and view results as a graph or table.")
+
+    st.subheader("🕸️ Graph Query")
+    st.caption("Visualize your Cypher query results as an interactive network graph.")
+    graph_query = st.text_area(
+        "Enter Cypher query for graph visualization:",
+        value=(
+            "CALL {\n"
+            " MATCH (o:Organization)-[:BASED_IN]->(:Suspected_VirtualOffice)\n"
+            " MATCH (o)-[:MANAGED_BY]-(a:AS)\n"
+            " WITH o, collect(DISTINCT a) AS ases\n"
+            " WHERE size(ases) > 1\n"
+            " WITH o, ases, size(ases) AS total_managed_ases\n"
+            " UNWIND ases AS a\n"
+            " OPTIONAL MATCH (a)-[:ORIGINATE]->(p:Prefix)\n"
+            " OPTIONAL MATCH (p)-[:COUNTRY]->(c:Country)\n"
+            " WITH\n"
+            " o, total_managed_ases, a,\n"
+            " count(DISTINCT p) AS total_prefixes,\n"
+            " count(DISTINCT CASE WHEN c IS NOT NULL THEN p END) AS geolocated_prefixes,\n"
+            " count(DISTINCT CASE WHEN c.country_code <> 'GB' THEN p END) AS non_uk_prefixes\n"
+            " WHERE geolocated_prefixes > 0\n"
+            " AND 1.0 * non_uk_prefixes / geolocated_prefixes > 0.5\n"
+            " WITH o, total_managed_ases, collect(DISTINCT a.asn) AS qualifying_asns\n"
+            " WITH o, total_managed_ases, qualifying_asns, size(qualifying_asns) AS num_qualifying_asns\n"
+            " ORDER BY total_managed_ases DESC, num_qualifying_asns DESC, o.name\n"
+            " LIMIT 10\n"
+            " RETURN o, total_managed_ases, num_qualifying_asns, qualifying_asns\n"
+            "}\n"
+            "UNWIND qualifying_asns AS qasn\n"
+            "MATCH p = (o)-[:MANAGED_BY]-(qa:AS {asn: qasn})\n"
+            "RETURN\n"
+            " p,\n"
+            " o.name AS organization,\n"
+            " o.Accounts_AccountCategory AS account_category,\n"
+            " total_managed_ases,\n"
+            " num_qualifying_asns\n"
+            "ORDER BY total_managed_ases DESC, num_qualifying_asns DESC, organization\n"
+            "LIMIT 1000;"
+        ),
+        height=200,
+        key="graph_query_input"
+    )
+    graph_max_records = st.number_input(
+        "Max Records (Graph):",
         value=50,
         min_value=1,
         max_value=1000,
-        key="custom_max_records"
+        key="graph_max_records"
     )
-
-    if st.button("▶️ Run Custom Query", key="run_custom_query"):
-        with st.spinner("Running custom query..."):
-            if query_input.strip():
-                results = run_query(query_input, driver=driver, max_records=max_records_input)
-                if results:
-                    nodes, relationships, table_data = extract_graph_data(results)
-                    st.metric("Nodes", len(nodes))
-                    st.metric("Relationships", len(relationships))
-                    st.metric("Records", len(table_data))
-                    create_graph_visualization(nodes, relationships)
-                    show_data_table(table_data)
-                else:
-                    st.warning("No results found for your query.")
+    if st.button("▶️ Run Graph Query"):
+        with st.spinner("Running graph query..."):
+            results = run_query(graph_query, driver=driver, max_records=graph_max_records)
+            if results:
+                nodes, relationships, _ = extract_graph_data(results)
+                create_graph_visualization(nodes, relationships)
             else:
-                st.warning("Please enter a Cypher query first.")
+                st.warning("No results found for your graph query.")
 
     st.markdown("---")
-    st.subheader("📊 Preset Demo Queries")
 
-    # Preset queries
-    preset_query_graph = """
-CALL {
-  MATCH (o:Organization)-[:BASED_IN]->(:Suspected_VirtualOffice)
-  MATCH (o)-[:MANAGED_BY]-(a:AS)
-  WITH o, collect(DISTINCT a) AS ases
-  WHERE size(ases) > 1
-  WITH o, ases, size(ases) AS total_managed_ases
-  UNWIND ases AS a
-  OPTIONAL MATCH (a)-[:ORIGINATE]->(p:Prefix)
-  OPTIONAL MATCH (p)-[:COUNTRY]->(c:Country)
-  WITH o, total_managed_ases, a,
-       count(DISTINCT p) AS total_prefixes,
-       count(DISTINCT CASE WHEN c IS NOT NULL THEN p END) AS geolocated_prefixes,
-       count(DISTINCT CASE WHEN c.country_code <> 'GB' THEN p END) AS non_uk_prefixes
-  WHERE geolocated_prefixes > 0
-    AND 1.0 * non_uk_prefixes / geolocated_prefixes > 0.5
-  RETURN o, total_managed_ases, collect(DISTINCT a) AS qualifying_ases
-  ORDER BY total_managed_ases DESC
-  LIMIT 10
-}
+    st.subheader("📋 Table Query")
+    st.caption("View your Cypher query results in a sortable, filterable table.")
+    table_query = st.text_area(
+        "Enter Cypher query for table view:",
+        value=(
+            "MATCH (o:Organization)-[:BASED_IN]->(:Suspected_VirtualOffice)\n"
+            "MATCH (o)-[:MANAGED_BY]-(a:AS)\n"
+            "WITH o, collect(DISTINCT a) AS ases\n"
+            "WHERE size(ases) > 1\n"
+            "WITH o, ases, size(ases) AS total_managed_ases\n"
+            "UNWIND ases AS a\n"
+            "OPTIONAL MATCH (a)-[:ORIGINATE]->(p:Prefix)\n"
+            "OPTIONAL MATCH (p)-[:COUNTRY]->(c:Country)\n"
+            "WITH\n"
+            "  o, total_managed_ases, a,\n"
+            "  count(DISTINCT p) AS total_prefixes,\n"
+            "  count(DISTINCT CASE WHEN c IS NOT NULL THEN p END) AS geolocated_prefixes,\n"
+            "  count(DISTINCT CASE WHEN c.country_code <> 'GB' THEN p END) AS non_uk_prefixes\n"
+            "WHERE geolocated_prefixes > 0\n"
+            "  AND (1.0 * non_uk_prefixes / geolocated_prefixes) > 0.5\n"
+            "WITH\n"
+            "  o, total_managed_ases,\n"
+            "  collect(DISTINCT a.asn) AS qualifying_asns\n"
+            "WITH\n"
+            "  o, total_managed_ases, qualifying_asns,\n"
+            "  size(qualifying_asns) AS num_qualifying_asns\n"
+            "RETURN\n"
+            "  o.name AS organization,\n"
+            "  o.Accounts_AccountCategory AS account_category,\n"
+            "  o.address_lines AS address_lines,\n"
+            "  total_managed_ases,\n"
+            "  num_qualifying_asns,\n"
+            "  qualifying_asns\n"
+            "ORDER BY total_managed_ases DESC, num_qualifying_asns DESC, organization\n"
+            "LIMIT 10;"
+        ),
+        height=200,
+        key="table_query_input"
+    )
+    table_max_records = st.number_input(
+        "Max Records (Table):",
+        value=50,
+        min_value=1,
+        max_value=1000,
+        key="table_max_records"
+    )
+    if st.button("📊 Run Table Query"):
+        with st.spinner("Running table query..."):
+            results = run_query(table_query, driver=driver, max_records=table_max_records)
+            if results:
+                _, _, table_data = extract_graph_data(results)
+                show_data_table(table_data)
+            else:
+                st.warning("No results found for your table query.")
 
-UNWIND qualifying_ases AS qa
-MATCH path = (o)-[r:MANAGED_BY]->(qa)
-RETURN path
-LIMIT 1000;
-"""
+    # --- Sidebar legend and info ---
+    with st.sidebar:
+        st.header("🎨 Node & Relationship Types")
+        st.markdown("""
+        <div style="line-height: 2.2;">
+        <span style="color:#ff6b6b; font-size:22px;">▲</span> <b>AS</b>: Autonomous Systems<br>
+        <span style="color:#4ecdc4; font-size:22px;">■</span> <b>Organization</b>: Organizations<br>
+        <span style="color:#45b7d1; font-size:22px;">●</span> <b>Country</b>: Countries<br>
+        <span style="color:#96ceb4; font-size:22px;">◆</span> <b>Prefix</b>: IP Prefixes<br>
+        <span style="color:#feca57; font-size:22px;">★</span> <b>IXP</b>: Internet Exchange Points<br>
+        <span style="color:#9b59b6; font-size:22px;">●</span> <b>Data</b>: Data nodes
+        </div>
+        <br>
+        <b>Relationship Types:</b><br>
+        - ORIGINATE: AS → Prefix<br>
+        - COUNTRY: Entity → Country<br>
+        - MEMBER_OF: AS → IXP
+        """, unsafe_allow_html=True)
 
-    preset_query_table = """
-MATCH (o:Organization)-[:BASED_IN]->(:Suspected_VirtualOffice)
-MATCH (o)-[:MANAGED_BY]-(a:AS)
-WITH o, collect(DISTINCT a) AS ases
-WHERE size(ases) > 1
-WITH o, ases, size(ases) AS total_managed_ases
-UNWIND ases AS a
-OPTIONAL MATCH (a)-[:ORIGINATE]->(p:Prefix)
-OPTIONAL MATCH (p)-[:COUNTRY]->(c:Country)
-WITH
-  o, total_managed_ases, a,
-  count(DISTINCT p) AS total_prefixes,
-  count(DISTINCT CASE WHEN c IS NOT NULL THEN p END) AS geolocated_prefixes,
-  count(DISTINCT CASE WHEN c.country_code <> 'GB' THEN p END) AS non_uk_prefixes
-WHERE geolocated_prefixes > 0
-  AND (1.0 * non_uk_prefixes / geolocated_prefixes) > 0.5
-WITH
-  o, total_managed_ases,
-  collect(DISTINCT a.asn) AS qualifying_asns
-WITH
-  o, total_managed_ases, qualifying_asns,
-  size(qualifying_asns) AS num_qualifying_asns
-RETURN
-  o.name AS organization,
-  o.Accounts_AccountCategory AS account_category,
-  o.address_lines AS address_lines,
-  total_managed_ases,
-  num_qualifying_asns,
-  qualifying_asns
-ORDER BY total_managed_ases DESC, num_qualifying_asns DESC, organization
-LIMIT 10;
-"""
+        st.markdown("---")
+        st.markdown(
+            "<div style='color:#0ff; font-size:1.1rem;'><b>💡 Tip:</b> "
+            "Try editing the queries or max records to explore different parts of the graph!</div>",
+            unsafe_allow_html=True
+        )
+        st.markdown(
+            "<div style='color:#4a9eff; font-size:1.1rem;'>"
+            "This is a <b>demo workflow</b> for experimenting with Cypher queries.<br>"
+            "Use the <b>Graph Query</b> to visualize, or the <b>Table Query</b> to inspect data in detail.<br>"
+            "Enjoy exploring! 🚀"
+            "</div>",
+            unsafe_allow_html=True
+        )
 
-    col1, col2 = st.columns(2)
-
-    with col1:
-        if st.button("▶️ Run Graph Demo Query", key="preset_graph"):
-            with st.spinner("Running graph demo query..."):
-                results = run_query(preset_query_graph, driver=driver, max_records=1000)
-                if results:
-                    nodes, relationships, table_data = extract_graph_data(results)
-                    st.metric("Nodes", len(nodes))
-                    st.metric("Relationships", len(relationships))
-                    st.metric("Records", len(table_data))
-                    create_graph_visualization(nodes, relationships)
-                    show_data_table(table_data)
-                else:
-                    st.warning("No results found for graph query.")
-
-    with col2:
-        if st.button("📊 Run Table Demo Query", key="preset_table"):
-            with st.spinner("Running table demo query..."):
-                results = run_query(preset_query_table, driver=driver, max_records=10)
-                if results:
-                    _, _, table_data = extract_graph_data(results)
-                    st.metric("Records", len(table_data))
-                    show_data_table(table_data)
-                else:
-                    st.warning("No results found for table query.")
+# Ensure the page runs when selected in Streamlit multipage
+if __name__ == "__main__" or True:
+    run_page()
