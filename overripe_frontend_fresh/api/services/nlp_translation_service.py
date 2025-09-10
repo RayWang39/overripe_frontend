@@ -9,7 +9,7 @@ class NLPTranslationService:
     
     def __init__(self):
         """Initialize the NLP translation service"""
-        self.api_key = "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"
+        self.api_key = os.getenv('OPENROUTER_API_KEY', '')
         self.api_url = "https://openrouter.ai/api/v1/chat/completions"
         self.model = "anthropic/claude-3.5-sonnet"
         print("NLP Translation service initialized with LLM API")
