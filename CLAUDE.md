@@ -18,7 +18,7 @@ Three interconnected components for querying and visualizing the Neo4j Internet 
 The core mission is to allow technical users to query internet infrastructure data (ASNs, IP prefixes, organizations, IXPs, etc.) WITHOUT needing to learn Cypher query language.
 
 ### Companies House Dashboard System
-4. **Companies House Dashboard** (`frontend/pages/streamlit_dashboard_mvp.py`) - Advanced analytics dashboard for UK Companies House data analysis with address-based clustering and risk assessment
+4. **Companies House Dashboard** (`frontend/pages/2_Companies_House_Dashboard.py`) - Advanced analytics dashboard for UK Companies House data analysis with address-based clustering and risk assessment
 
 ## Architecture Components
 
@@ -43,7 +43,7 @@ Interactive web interface with two main features:
 - Direct connection to Neo4j for query execution and visualization
 - Runs on port 8501 by default
 
-### 4. Companies House Dashboard (`frontend/pages/streamlit_dashboard_mvp.py`)
+### 4. Companies House Dashboard (`frontend/pages/2_Companies_House_Dashboard.py`)
 Advanced analytics dashboard for UK Companies House corporate data analysis:
 - **Address-Based Clustering** - Groups companies by physical addresses to identify hub locations
 - **Risk Assessment Metrics** - Compares company filing patterns against national baselines
@@ -94,7 +94,8 @@ api/                        # Web API for method chain translation
 frontend/                   # Interactive web interfaces
 ├── app.py                 # Main IYP Query interface
 ├── pages/                 # Additional dashboard pages
-│   ├── streamlit_dashboard_mvp.py  # Companies House dashboard
+│   ├── 1_Demo_Workflow.py # Demo workflow and examples
+│   ├── 2_Companies_House_Dashboard.py  # Companies House dashboard
 │   ├── tuesday_mvp.csv    # Companies House data (4.5MB)
 │   └── baselines_final.csv # UK national company filing baselines
 └── utils.py               # Shared utilities
@@ -159,7 +160,7 @@ cd api && PYTHONPATH=.. python -m uvicorn main:app --host 0.0.0.0 --port 8001 --
 streamlit run frontend/app.py
 
 # 3. Start the Companies House Dashboard (optional, in a new terminal)
-streamlit run frontend/pages/streamlit_dashboard_mvp.py --server.port 8502
+streamlit run frontend/pages/2_Companies_House_Dashboard.py --server.port 8502
 
 # The system will be available at:
 # - IYP Query UI: http://localhost:8501
@@ -458,7 +459,7 @@ docker-compose --env-file .env up
 ## Companies House Dashboard
 
 ### Overview
-The Companies House Dashboard (`frontend/pages/streamlit_dashboard_mvp.py`) is a comprehensive analytics tool for analyzing UK corporate registration data. It focuses on address-based clustering to identify potential hub locations and assess company filing patterns against national baselines.
+The Companies House Dashboard (`frontend/pages/2_Companies_House_Dashboard.py`) is a comprehensive analytics tool for analyzing UK corporate registration data. It focuses on address-based clustering to identify potential hub locations and assess company filing patterns against national baselines.
 
 ### Key Features
 
@@ -512,11 +513,11 @@ National UK statistics for comparison:
 
 ```bash
 # Standalone dashboard (recommended)
-streamlit run frontend/pages/streamlit_dashboard_mvp.py --server.port 8502
+streamlit run frontend/pages/2_Companies_House_Dashboard.py --server.port 8502
 
 # Alternative: Run from pages directory
 cd frontend/pages
-streamlit run streamlit_dashboard_mvp.py
+streamlit run 2_Companies_House_Dashboard.py
 
 # The dashboard will be available at: http://localhost:8502
 ```
@@ -598,7 +599,7 @@ git push origin main
 ```
 
 #### Streamlit Cloud Configuration
-- **Main file path**: `frontend/pages/streamlit_dashboard_mvp.py`
+- **Main file path**: `frontend/pages/2_Companies_House_Dashboard.py`
 - **Python version**: 3.12 (or compatible)
 - **Requirements**: Uses root `requirements.txt`
 
@@ -643,7 +644,7 @@ git push origin main
 1. Go to https://streamlit.io/cloud  
 2. Click "New app"
 3. Select your GitHub repository
-4. Set main file: `frontend/pages/streamlit_dashboard_mvp.py`
+4. Set main file: `frontend/pages/2_Companies_House_Dashboard.py`
 5. No secrets needed
 6. Click "Deploy"
 
@@ -701,7 +702,7 @@ You can deploy both apps from the same repository:
 
 **App 2 - Companies House Dashboard:**
 - URL: `https://your-app-companies-house.streamlit.app`
-- Main file: `frontend/pages/streamlit_dashboard_mvp.py`
+- Main file: `frontend/pages/2_Companies_House_Dashboard.py`
 - Requires: No secrets
 
 ### 6. Environment Variables for Deployment
