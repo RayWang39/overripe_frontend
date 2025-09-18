@@ -72,7 +72,7 @@ class NLPTranslationService:
             }
     
     def _build_prompt(self, natural_query: str) -> str:
-        """Build prompt with schema context and examples"""
+        """Build prompt with schema context and examples - optimized for DeepSeek R1"""
         return f"""You are an expert Neo4j Cypher query generator for internet infrastructure data.
 
 DATABASE SCHEMA:
@@ -104,16 +104,19 @@ Cypher: MATCH (org:Organization {{name: 'Google'}})<-[:MANAGED_BY]-(as:AS) RETUR
 Natural: "Show peering partners of Cloudflare"
 Cypher: MATCH (as:AS {{name: 'Cloudflare'}})-[:PEERS_WITH]-(peer:AS) RETURN as, peer LIMIT 15
 
-RULES:
+IMPORTANT INSTRUCTIONS:
 1. Always include LIMIT clause (max 50)
 2. Use exact property names from schema
 3. Only use READ operations (MATCH, RETURN, WHERE, etc.)
 4. Be specific with node labels and relationships
-5. Return only the Cypher query, nothing else
+5. CRITICAL: Your response must contain ONLY the Cypher query
+6. Do not include explanations, reasoning, or additional text
+7. Start your response directly with MATCH or other Cypher keywords
+8. Do not use markdown code blocks or formatting
 
 USER QUERY: "{natural_query}"
 
-Generate the corresponding Cypher query:"""
+Provide only the Cypher query (no explanations or reasoning):"""
 
     def _call_llm_api(self, prompt: str) -> Dict[str, Any]:
         """Call the LLM API with the prompt"""
@@ -160,26 +163,72 @@ Generate the corresponding Cypher query:"""
             }
     
     def _extract_cypher(self, llm_response: str) -> Optional[str]:
-        """Extract Cypher query from LLM response"""
-        # Remove markdown code blocks if present
+        """Extract Cypher query from LLM response with multiple parsing strategies"""
+        import re
+        
         content = llm_response.strip()
         
-        # Remove ```cypher and ``` markers
-        if content.startswith("```"):
-            lines = content.split("\n")
-            # Remove first line (```cypher or similar)
-            if len(lines) > 0:
-                lines = lines[1:]
-            # Remove last line if it's ```
-            if lines and lines[-1].strip() == "```":
-                lines = lines[:-1]
-            content = "\n".join(lines).strip()
+        # Strategy 1: Remove markdown code blocks
+        if "```" in content:
+            # Extract content between code blocks
+            code_block_pattern = r'```(?:cypher|sql)?\s*([\s\S]*?)```'
+            matches = re.findall(code_block_pattern, content, re.IGNORECASE)
+            if matches:
+                content = matches[0].strip()
         
-        # Basic validation - should start with MATCH
-        if content.upper().startswith("MATCH"):
+        # Strategy 2: Look for lines starting with MATCH (most common Cypher start)
+        lines = content.split('\n')
+        cypher_lines = []
+        found_match = False
+        
+        for line in lines:
+            line = line.strip()
+            if line.upper().startswith('MATCH'):
+                found_match = True
+                cypher_lines.append(line)
+            elif found_match and line:
+                # Continue collecting lines after MATCH
+                if any(keyword in line.upper() for keyword in ['RETURN', 'WHERE', 'WITH', 'LIMIT', 'ORDER']):
+                    cypher_lines.append(line)
+                elif line.upper().startswith(('CREATE', 'DELETE', 'SET')):
+                    # Stop at unsafe operations
+                    break
+                elif line and not line.startswith('#') and not line.startswith('//'):
+                    cypher_lines.append(line)
+        
+        if cypher_lines:
+            extracted = ' '.join(cypher_lines)
+            if self._is_valid_cypher_structure(extracted):
+                return extracted
+        
+        # Strategy 3: Find any MATCH statement in the text
+        match_pattern = r'(MATCH\s+[^\n]*(?:\n[^\n]*)*?(?:LIMIT\s+\d+|$))'
+        matches = re.findall(match_pattern, content, re.IGNORECASE | re.MULTILINE)
+        if matches:
+            candidate = matches[0].strip()
+            if self._is_valid_cypher_structure(candidate):
+                return candidate
+        
+        # Strategy 4: Look for any line that looks like Cypher
+        for line in lines:
+            line = line.strip()
+            if (line.upper().startswith('MATCH') and 
+                ('RETURN' in line.upper() or 'WHERE' in line.upper())):
+                if self._is_valid_cypher_structure(line):
+                    return line
+        
+        # Strategy 5: Return the whole response if it looks like Cypher
+        if self._is_valid_cypher_structure(content):
             return content
         
         return None
+    
+    def _is_valid_cypher_structure(self, text: str) -> bool:
+        """Check if text has basic Cypher structure"""
+        text_upper = text.upper()
+        return (text_upper.startswith('MATCH') and 
+                ('RETURN' in text_upper or 'WHERE' in text_upper) and
+                len(text.strip()) > 10)
     
     def _is_safe_query(self, cypher: str) -> bool:
         """Check if the query is safe (no write operations)"""
