@@ -1,6 +1,7 @@
 """Natural Language to Cypher translation service using LLM API"""
 import httpx
 import json
+import os
 from typing import Any, Dict, Optional
 from config import settings
 
@@ -11,8 +12,8 @@ class NLPTranslationService:
         """Initialize the NLP translation service"""
         self.api_key = os.getenv('OPENROUTER_API_KEY', '')
         self.api_url = "https://openrouter.ai/api/v1/chat/completions"
-        self.model = "anthropic/claude-3.5-sonnet"
-        print("NLP Translation service initialized with LLM API")
+        self.model = "deepseek/deepseek-r1-0528:free"  # Using free DeepSeek model
+        print("NLP Translation service initialized with free DeepSeek model")
     
     def translate_natural_language(self, natural_query: str) -> Dict[str, Any]:
         """
