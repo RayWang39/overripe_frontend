@@ -32,8 +32,8 @@ enabled = true
 ### Step 3: Test Your Login
 
 **Test Credentials:**
-- Username: `admin` / Password: `admin123`
-- Username: `demo` / Password: `demo123`
+- Username: `admin` / Password: `Admin@2025!Test`
+- Username: `demo` / Password: `DemoView#2025!`
 
 ⚠️ **IMPORTANT:** These are test credentials. Change them before going to production!
 
@@ -68,8 +68,8 @@ cp users.example.json users.json
 ```
 
 Now you can login locally with:
-- Username: `admin` / Password: `admin123`
-- Username: `demo` / Password: `demo123`
+- Username: `admin` / Password: `Admin@2025!Test`
+- Username: `demo` / Password: `DemoView#2025!`
 
 ### Option 2: Create Your Own
 ```bash
