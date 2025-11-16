@@ -6,9 +6,9 @@ When deploying the Streamlit frontend (on Streamlit Cloud, Heroku, or other plat
 
 ### 1. Neo4j Database Connection
 ```
-NEO4J_URI=neo4j+s://iyp.christyquinn.com:7687
-NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=lewagon25omgbbq
+NEO4J_URI=neo4j+s://your-neo4j-server.com:7687
+NEO4J_USERNAME=your_username
+NEO4J_PASSWORD=your_password_here
 ```
 
 ### 2. API Connection (CRITICAL)
@@ -39,12 +39,12 @@ In Streamlit Cloud dashboard, go to Settings → Secrets and add:
 
 ```toml
 # Database Configuration
-NEO4J_URI = "neo4j+s://iyp.christyquinn.com:7687"
-NEO4J_USERNAME = "neo4j"
-NEO4J_PASSWORD = "lewagon25omgbbq"
+NEO4J_URI = "neo4j+s://your-neo4j-server.com:7687"
+NEO4J_USERNAME = "your_username"
+NEO4J_PASSWORD = "your_password_here"
 
 # API Configuration - Railway Deployment URL
-API_BASE_URL = "https://overripefrontend-production.up.railway.app"
+API_BASE_URL = "https://your-app-name.up.railway.app"
 ```
 
 ### Step 4: Deploy

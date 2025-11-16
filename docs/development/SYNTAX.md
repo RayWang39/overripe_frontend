@@ -618,14 +618,25 @@ If you somehow get alias conflicts in Jupyter, just restart the kernel or re-run
 ```python
 # Re-establish connection if needed
 from iyp_query import connect
-iyp = connect('bolt+s://iyp.christyquinn.com:7687', 'neo4j', 'lewagon25omgbbq')
+import os
+iyp = connect(
+    os.getenv('NEO4J_URI', 'bolt+s://your-server.com:7687'),
+    os.getenv('NEO4J_USERNAME', 'neo4j'),
+    os.getenv('NEO4J_PASSWORD')
+)
 ```
 
 ### Recommended Pattern for Jupyter
 ```python
 # Cell 1: Setup
 from iyp_query import connect, Q, And, Or
-iyp = connect('bolt+s://iyp.christyquinn.com:7687', 'neo4j', 'lewagon25omgbbq')
+import os
+
+iyp = connect(
+    os.getenv('NEO4J_URI'),
+    os.getenv('NEO4J_USERNAME'),
+    os.getenv('NEO4J_PASSWORD')
+)
 
 # Cell 2: Query 1 (use auto-aliases)
 query1 = (iyp.builder()
