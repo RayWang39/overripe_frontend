@@ -1,6 +1,7 @@
 """
 Simple authentication module for Streamlit app
 MVP version - just login/logout with bcrypt password hashing
+Supports both Streamlit Secrets (production) and users.json (local dev)
 """
 import streamlit as st
 import bcrypt
@@ -8,15 +9,46 @@ import json
 import os
 from typing import Optional, Dict
 
-# Path to users file
+# Path to users file (fallback for local development)
 USERS_FILE = os.path.join(os.path.dirname(__file__), "users.json")
 
 
 def load_users() -> Dict:
-    """Load users from JSON file"""
+    """
+    Load users from Streamlit Secrets (primary) or users.json (fallback)
+
+    Priority:
+    1. st.secrets["users"] - for Streamlit Cloud deployment
+    2. users.json file - for local development
+
+    Returns:
+        Dictionary of users with structure: {username: {password_hash, full_name, role, enabled}}
+    """
+    # Try loading from Streamlit Secrets first (production)
+    try:
+        if hasattr(st, 'secrets') and "users" in st.secrets:
+            # Convert secrets to dict format
+            users = {}
+            for username in st.secrets["users"]:
+                user_data = st.secrets["users"][username]
+                users[username] = {
+                    "password_hash": user_data.get("password_hash", ""),
+                    "full_name": user_data.get("full_name", username),
+                    "role": user_data.get("role", "viewer"),
+                    "enabled": user_data.get("enabled", True)
+                }
+            if users:
+                return users
+    except Exception as e:
+        # Secrets not available or error reading them - continue to file fallback
+        pass
+
+    # Fallback to users.json file (local development)
     if not os.path.exists(USERS_FILE):
-        st.error(f"Users file not found: {USERS_FILE}")
-        st.info("Please create a users.json file or contact your administrator.")
+        st.error(f"⚠️ No user configuration found!")
+        st.info("**For Streamlit Cloud:** Configure users in Streamlit Secrets")
+        st.info("**For Local Development:** Create a users.json file")
+        st.markdown("See documentation for setup instructions.")
         return {}
 
     try:
