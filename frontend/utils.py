@@ -22,16 +22,16 @@ def get_driver():
 
         # Try to get from Streamlit secrets first (Streamlit Cloud)
         try:
-            if hasattr(st, 'secrets'):
-                # Use bracket notation, not .get()
-                if "NEO4J_URI" in st.secrets:
-                    URI = st.secrets["NEO4J_URI"]
-                if "NEO4J_USERNAME" in st.secrets:
-                    USERNAME = st.secrets["NEO4J_USERNAME"]
-                if "NEO4J_PASSWORD" in st.secrets:
-                    PASSWORD = st.secrets["NEO4J_PASSWORD"]
-        except Exception as e:
-            # If secrets fail, will fall back to env vars
+            # Try to access secrets directly - they should always exist on Streamlit Cloud
+            if "NEO4J_URI" in st.secrets:
+                URI = st.secrets["NEO4J_URI"]
+            if "NEO4J_USERNAME" in st.secrets:
+                USERNAME = st.secrets["NEO4J_USERNAME"]
+            if "NEO4J_PASSWORD" in st.secrets:
+                PASSWORD = st.secrets["NEO4J_PASSWORD"]
+        except (AttributeError, FileNotFoundError, KeyError) as e:
+            # Secrets not available or keys not found - will fall back to env vars
+            # This is expected for local development
             pass
 
         # Fallback to environment variables (local dev)
@@ -48,10 +48,22 @@ def get_driver():
             if not URI: missing.append('NEO4J_URI')
             if not USERNAME: missing.append('NEO4J_USERNAME')
             if not PASSWORD: missing.append('NEO4J_PASSWORD')
-            raise ValueError(
-                f"Missing required environment variables: {', '.join(missing)}. "
-                "Please set them in Streamlit Secrets or your .env file."
-            )
+
+            # Better error message with debugging info
+            error_msg = f"Missing required credentials: {', '.join(missing)}.\n\n"
+
+            # Check if we're on Streamlit Cloud
+            try:
+                available_secrets = list(st.secrets.keys()) if hasattr(st, 'secrets') else []
+                if available_secrets:
+                    error_msg += f"Available secrets keys: {', '.join(available_secrets)}\n"
+                    error_msg += "Make sure NEO4J_URI, NEO4J_USERNAME, and NEO4J_PASSWORD are at ROOT level (not nested)."
+                else:
+                    error_msg += "No secrets found. Configure them in Streamlit Cloud settings."
+            except Exception:
+                error_msg += "Running locally - set credentials in .env file."
+
+            raise ValueError(error_msg)
 
         _driver = GraphDatabase.driver(URI, auth=(USERNAME, PASSWORD))
 
