@@ -16,15 +16,25 @@ if not check_authentication():
 # Lazy database connection function
 def get_neo4j_driver():
     """Get Neo4j driver with lazy initialization (Streamlit Cloud compatible)"""
+    URI = None
+    USERNAME = None
+    PASSWORD = None
+
     # Try Streamlit secrets first (Streamlit Cloud)
     try:
-        URI = st.secrets.get("NEO4J_URI")
-        USERNAME = st.secrets.get("NEO4J_USERNAME")
-        PASSWORD = st.secrets.get("NEO4J_PASSWORD")
+        if hasattr(st, 'secrets'):
+            URI = st.secrets.get("NEO4J_URI", None)
+            USERNAME = st.secrets.get("NEO4J_USERNAME", None)
+            PASSWORD = st.secrets.get("NEO4J_PASSWORD", None)
     except Exception:
-        # Fallback to environment variables (local dev)
+        pass
+
+    # Fallback to environment variables (local dev)
+    if not URI:
         URI = os.getenv('NEO4J_URI')
+    if not USERNAME:
         USERNAME = os.getenv('NEO4J_USERNAME')
+    if not PASSWORD:
         PASSWORD = os.getenv('NEO4J_PASSWORD')
 
     # Validate required credentials
