@@ -40,9 +40,9 @@ def get_neo4j_driver():
 
     return GraphDatabase.driver(URI, auth=(USERNAME, PASSWORD))
 
-driver = get_neo4j_driver()
-
 def run_page():
+    # Get driver when needed
+    driver = get_neo4j_driver()
     # Neon ASCII banner
     st.markdown("<br>", unsafe_allow_html=True)
     banner_text = r"""

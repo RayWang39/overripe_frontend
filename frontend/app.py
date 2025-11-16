@@ -98,9 +98,6 @@ def get_neo4j_driver():
 
     return GraphDatabase.driver(URI, auth=(USERNAME, PASSWORD))
 
-# Initialize driver (will be called when needed)
-driver = get_neo4j_driver()
-
 # Method Chain Translation API - using environment variable with fallback
 API_BASE = os.getenv('API_BASE_URL', 'https://overripefrontend-production.up.railway.app')
 
@@ -133,6 +130,7 @@ def translate_method_chain(method_chain: str, parameters: dict = None):
 def run_query(query, max_records=100):
     """Run a Cypher query against Neo4j and return results"""
     try:
+        driver = get_neo4j_driver()  # Get driver when needed
         with driver.session() as session:
             # Strip semicolons and whitespace
             query = query.strip().rstrip(';')
