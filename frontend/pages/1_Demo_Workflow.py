@@ -14,9 +14,21 @@ if not check_authentication():
     st.stop()  # Stop execution if not authenticated
 
 # Database connection
-URI = os.getenv('NEO4J_URI', 'neo4j+s://iyp.christyquinn.com:7687')
-USERNAME = os.getenv('NEO4J_USERNAME', 'neo4j')
-PASSWORD = os.getenv('NEO4J_PASSWORD', 'lewagon25omgbbq')
+URI = os.getenv('NEO4J_URI')
+USERNAME = os.getenv('NEO4J_USERNAME')
+PASSWORD = os.getenv('NEO4J_PASSWORD')
+
+# Validate required environment variables
+if not all([URI, USERNAME, PASSWORD]):
+    missing = []
+    if not URI: missing.append('NEO4J_URI')
+    if not USERNAME: missing.append('NEO4J_USERNAME')
+    if not PASSWORD: missing.append('NEO4J_PASSWORD')
+    raise ValueError(
+        f"Missing required environment variables: {', '.join(missing)}. "
+        "Please set them in your .env file or environment."
+    )
+
 driver = GraphDatabase.driver(URI, auth=(USERNAME, PASSWORD))
 
 def run_page():

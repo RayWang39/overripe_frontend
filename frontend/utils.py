@@ -5,17 +5,27 @@ from pyvis.network import Network
 import streamlit as st
 import streamlit.components.v1 as components
 import random
+import os
 
 from neo4j import GraphDatabase
 
-URI = "neo4j+s://iyp.christyquinn.com:7687"
-USERNAME = "neo4j"
-PASSWORD = "lewagon25omgbbq"
+# Database connection using environment variables
+URI = os.getenv('NEO4J_URI')
+USERNAME = os.getenv('NEO4J_USERNAME')
+PASSWORD = os.getenv('NEO4J_PASSWORD')
+
+# Validate required environment variables
+if not all([URI, USERNAME, PASSWORD]):
+    missing = []
+    if not URI: missing.append('NEO4J_URI')
+    if not USERNAME: missing.append('NEO4J_USERNAME')
+    if not PASSWORD: missing.append('NEO4J_PASSWORD')
+    raise ValueError(
+        f"Missing required environment variables: {', '.join(missing)}. "
+        "Please set them in your .env file or environment."
+    )
 
 driver = GraphDatabase.driver(URI, auth=(USERNAME, PASSWORD))
-
-# utils.py
-import streamlit as st
 
 def run_query(query, max_records=100, driver=None):
     """Run a Cypher query against Neo4j and return results"""

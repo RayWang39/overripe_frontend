@@ -7,10 +7,21 @@ import json
 import requests
 from typing import Any, Dict, List, Set, Tuple
 
-# Database connection settings
-URI = "neo4j+s://iyp.christyquinn.com:7687"
-USERNAME = "neo4j"
-PASSWORD = "lewagon25omgbbq"
+# Database connection settings using environment variables
+URI = os.getenv('NEO4J_URI')
+USERNAME = os.getenv('NEO4J_USERNAME')
+PASSWORD = os.getenv('NEO4J_PASSWORD')
+
+# Validate required environment variables
+if not all([URI, USERNAME, PASSWORD]):
+    missing = []
+    if not URI: missing.append('NEO4J_URI')
+    if not USERNAME: missing.append('NEO4J_USERNAME')
+    if not PASSWORD: missing.append('NEO4J_PASSWORD')
+    raise ValueError(
+        f"Missing required environment variables: {', '.join(missing)}. "
+        "Please set them in your .env file or environment."
+    )
 
 # Connect to Neo4j
 driver = GraphDatabase.driver(URI, auth=(USERNAME, PASSWORD))

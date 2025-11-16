@@ -18,9 +18,26 @@ class Settings(BaseSettings):
     reload: bool = True
     
     # Neo4j Configuration
-    neo4j_uri: str = os.getenv("NEO4J_URI", "bolt+s://iyp.christyquinn.com:7687")
-    neo4j_user: str = os.getenv("NEO4J_USER", "neo4j")
-    neo4j_password: str = os.getenv("NEO4J_PASSWORD", "lewagon25omgbbq")
+    neo4j_uri: str = os.getenv("NEO4J_URI")
+    neo4j_user: str = os.getenv("NEO4J_USER")
+    neo4j_password: str = os.getenv("NEO4J_PASSWORD")
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Validate required Neo4j credentials
+        missing = []
+        if not self.neo4j_uri:
+            missing.append("NEO4J_URI")
+        if not self.neo4j_user:
+            missing.append("NEO4J_USER")
+        if not self.neo4j_password:
+            missing.append("NEO4J_PASSWORD")
+
+        if missing:
+            raise ValueError(
+                f"Missing required environment variables: {', '.join(missing)}. "
+                "Please set them in your .env file or environment."
+            )
     
     # Security
     secret_key: str = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
