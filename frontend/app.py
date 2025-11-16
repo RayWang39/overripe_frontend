@@ -19,6 +19,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Import authentication module
+from auth import check_authentication, show_logout_button
+
+# Authentication check - MUST come before any other content
+if not check_authentication():
+    st.stop()  # Stop execution if not authenticated
+
 
 # Top padding
 st.markdown("<br>", unsafe_allow_html=True)
@@ -858,6 +865,9 @@ else:
 
 # Sidebar with legend
 with st.sidebar:
+    # Show logout button at the top
+    show_logout_button()
+
     st.header("🎨 Node Types")
     st.markdown("""
     <div style="line-height: 2.2;">

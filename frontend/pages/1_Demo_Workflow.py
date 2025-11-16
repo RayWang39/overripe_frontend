@@ -1,8 +1,17 @@
 import streamlit as st
 import os
 import pandas as pd
+import sys
 from neo4j import GraphDatabase
 from utils import run_query, extract_graph_data, create_graph_visualization, show_data_table
+
+# Add parent directory to path to import auth module
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from auth import check_authentication, show_logout_button
+
+# Authentication check - MUST come before any other content
+if not check_authentication():
+    st.stop()  # Stop execution if not authenticated
 
 # Database connection
 URI = os.getenv('NEO4J_URI', 'neo4j+s://iyp.christyquinn.com:7687')
@@ -162,6 +171,9 @@ def run_page():
 
     # --- Sidebar legend and info ---
     with st.sidebar:
+        # Show logout button at the top
+        show_logout_button()
+
         st.header("🎨 Node & Relationship Types")
         st.markdown("""
         <div style="line-height: 2.2;">

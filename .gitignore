@@ -119,4 +119,7 @@ raw_data
 
 # Windows metadata
 *Zone.Identifier
+
+# Streamlit secrets and authentication
 .streamlit/secrets.toml
+frontend/users.json

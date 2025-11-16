@@ -8,6 +8,15 @@ import plotly.graph_objects as go
 import numpy as np
 import ast
 import os
+import sys
+
+# Add parent directory to path to import auth module
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from auth import check_authentication, show_logout_button
+
+# Authentication check - MUST come before any other content
+if not check_authentication():
+    st.stop()  # Stop execution if not authenticated
 
 # -----------------------------
 # Page config - removed st.set_page_config() as it should only be in main app.py
@@ -53,6 +62,9 @@ def kpi_block(df: pd.DataFrame):
 # Sidebar filters
 # -----------------------------
 def sidebar_filters(df: pd.DataFrame) -> pd.DataFrame:
+    # Show logout button at the top of sidebar
+    show_logout_button()
+
     st.sidebar.header("Filters")
 
     # Reset button at the top
