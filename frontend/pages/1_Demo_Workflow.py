@@ -51,8 +51,6 @@ def get_neo4j_driver():
     return GraphDatabase.driver(URI, auth=(USERNAME, PASSWORD))
 
 def run_page():
-    # Get driver when needed
-    driver = get_neo4j_driver()
     # Neon ASCII banner
     st.markdown("<br>", unsafe_allow_html=True)
     banner_text = r"""
@@ -138,6 +136,7 @@ def run_page():
     )
     if st.button("▶️ Run Graph Query"):
         with st.spinner("Running graph query..."):
+            driver = get_neo4j_driver()  # Get driver only when actually running a query
             results = run_query(graph_query, driver=driver, max_records=graph_max_records)
             if results:
                 nodes, relationships, _ = extract_graph_data(results)
@@ -195,6 +194,7 @@ def run_page():
     )
     if st.button("📊 Run Table Query"):
         with st.spinner("Running table query..."):
+            driver = get_neo4j_driver()  # Get driver only when actually running a query
             results = run_query(table_query, driver=driver, max_records=table_max_records)
             if results:
                 _, _, table_data = extract_graph_data(results)
@@ -239,6 +239,6 @@ def run_page():
             unsafe_allow_html=True
         )
 
-# Ensure the page runs when selected in Streamlit multipage
-if __name__ == "__main__" or True:
-    run_page()
+# Run the page - Streamlit executes pages directly
+# Authentication is checked inside run_page()
+run_page()
