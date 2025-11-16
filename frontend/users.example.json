@@ -1,13 +1,13 @@
 {
   "users": {
     "admin": {
-      "password_hash": "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TT.vjV4zvJZEp.xrO7eZJ5gsxeOm",
+      "password_hash": "$2b$12$VTQxLThV9hjVztGL6drNO.4Ulc4DPo.kx45wElIoyHHaNpTnC5Xje",
       "full_name": "Administrator",
       "role": "admin",
       "enabled": true
     },
     "demo": {
-      "password_hash": "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW",
+      "password_hash": "$2b$12$nOQpfWmfLw.dax.6UZoVy.wFKhsZAB8SVN3NeG67QPOqLAjdwt7z.",
       "full_name": "Demo User",
       "role": "viewer",
       "enabled": true
@@ -16,7 +16,7 @@
   "_comment": "This is an example users file. Copy to users.json and update with real credentials.",
   "_instructions": {
     "how_to_use": "1. Copy this file to users.json, 2. Run 'python scripts/hash_password.py' to generate password hashes, 3. Replace the password_hash values above",
-    "example_passwords": "The hashes above are for 'password123' (DO NOT USE IN PRODUCTION)",
+    "example_passwords": "The hashes above are for: admin='admin123', demo='demo123' (DO NOT USE IN PRODUCTION)",
     "roles": {
       "admin": "Full access to all features",
       "analyst": "Can run queries and view dashboards",
