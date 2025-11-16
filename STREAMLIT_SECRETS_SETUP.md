@@ -12,72 +12,71 @@ Your auth system now supports **both** Streamlit Secrets (production) and users.
 3. Click **Settings** (gear icon)
 4. Click **Secrets** in the left sidebar
 
-### Step 2: Copy the Secrets Configuration
-Copy the entire content from `frontend/secrets.example.toml` and paste it into the Secrets editor:
-
-```toml
-[users.admin]
-password_hash = "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TT.vjV4zvJZEp.xrO7eZJ5gsxeOm"
-full_name = "Administrator"
-role = "admin"
-enabled = true
-
-[users.demo]
-password_hash = "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW"
-full_name = "Demo User"
-role = "viewer"
-enabled = true
-```
-
-### Step 3: Test Your Login
-
-**Test Credentials:**
-- Username: `admin` / Password: `Admin@2025!Test`
-- Username: `demo` / Password: `DemoView#2025!`
-
-⚠️ **IMPORTANT:** These are test credentials. Change them before going to production!
-
-### Step 4: Change Passwords (Recommended)
-
-To create your own passwords:
+### Step 2: Generate Secure Passwords
 
 1. **Locally**, run the password hasher:
    ```bash
-   cd frontend/scripts
-   python hash_password.py
+   python frontend/scripts/hash_password.py
    ```
 
 2. Enter your desired password when prompted
 
 3. Copy the generated hash (starts with `$2b$12$...`)
 
-4. Update the Streamlit Secrets in your dashboard with the new hash
+4. Repeat for each user account you need
 
-5. Click **Save**
+### Step 3: Configure Streamlit Secrets
 
-Your app will automatically restart with the new credentials.
+Paste your user configuration into the Secrets editor in TOML format:
+
+```toml
+[users.admin]
+password_hash = "YOUR_GENERATED_HASH_HERE"
+full_name = "Administrator"
+role = "admin"
+enabled = true
+
+[users.demo]
+password_hash = "YOUR_GENERATED_HASH_HERE"
+full_name = "Demo User"
+role = "viewer"
+enabled = true
+```
+
+Click **Save** and your app will automatically restart.
 
 ---
 
 ## For Local Development
 
-### Option 1: Copy Example File
-```bash
-cd frontend
-cp users.example.json users.json
-```
+### Create users.json File
 
-Now you can login locally with:
-- Username: `admin` / Password: `Admin@2025!Test`
-- Username: `demo` / Password: `DemoView#2025!`
+1. Generate password hashes using the password hasher:
+   ```bash
+   python frontend/scripts/hash_password.py
+   ```
 
-### Option 2: Create Your Own
-```bash
-cd frontend/scripts
-python hash_password.py  # Generate a hash
+2. Create `frontend/users.json` with your hashes:
+   ```json
+   {
+     "users": {
+       "admin": {
+         "password_hash": "YOUR_GENERATED_HASH_HERE",
+         "full_name": "Administrator",
+         "role": "admin",
+         "enabled": true
+       },
+       "demo": {
+         "password_hash": "YOUR_GENERATED_HASH_HERE",
+         "full_name": "Demo User",
+         "role": "viewer",
+         "enabled": true
+       }
+     }
+   }
+   ```
 
-# Then edit frontend/users.json with your hash
-```
+3. This file is gitignored and will never be committed to GitHub
 
 ---
 
@@ -108,9 +107,10 @@ This means:
 
 ⚠️ **Important:**
 - Never commit `users.json` to git (it's gitignored)
-- Change default passwords before production use
-- Password hashes are safe to commit in documentation examples
+- Always use strong, unique passwords for production
+- Password hashes are irreversible but should still be kept secure
 - Backup your production secrets separately (not in git)
+- Use a password manager to store your passwords
 
 ---
 
@@ -118,7 +118,7 @@ This means:
 
 **"No user configuration found" error:**
 - On Streamlit Cloud: Add secrets via Settings > Secrets
-- Locally: Create `frontend/users.json` from the example file
+- Locally: Create `frontend/users.json` with your password hashes
 
 **"Invalid username or password":**
 - Verify you're using the correct credentials
