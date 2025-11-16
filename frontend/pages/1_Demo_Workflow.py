@@ -23,10 +23,15 @@ def get_neo4j_driver():
     # Try Streamlit secrets first (Streamlit Cloud)
     try:
         if hasattr(st, 'secrets'):
-            URI = st.secrets.get("NEO4J_URI", None)
-            USERNAME = st.secrets.get("NEO4J_USERNAME", None)
-            PASSWORD = st.secrets.get("NEO4J_PASSWORD", None)
-    except Exception:
+            # Use bracket notation, not .get()
+            if "NEO4J_URI" in st.secrets:
+                URI = st.secrets["NEO4J_URI"]
+            if "NEO4J_USERNAME" in st.secrets:
+                USERNAME = st.secrets["NEO4J_USERNAME"]
+            if "NEO4J_PASSWORD" in st.secrets:
+                PASSWORD = st.secrets["NEO4J_PASSWORD"]
+    except Exception as e:
+        # If secrets fail, will fall back to env vars
         pass
 
     # Fallback to environment variables (local dev)

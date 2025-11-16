@@ -16,15 +16,30 @@ def get_driver():
     """Get or create Neo4j driver (lazy initialization for Streamlit Cloud compatibility)"""
     global _driver
     if _driver is None:
+        URI = None
+        USERNAME = None
+        PASSWORD = None
+
         # Try to get from Streamlit secrets first (Streamlit Cloud)
         try:
-            URI = st.secrets.get("NEO4J_URI")
-            USERNAME = st.secrets.get("NEO4J_USERNAME")
-            PASSWORD = st.secrets.get("NEO4J_PASSWORD")
-        except Exception:
-            # Fallback to environment variables (local dev)
+            if hasattr(st, 'secrets'):
+                # Use bracket notation, not .get()
+                if "NEO4J_URI" in st.secrets:
+                    URI = st.secrets["NEO4J_URI"]
+                if "NEO4J_USERNAME" in st.secrets:
+                    USERNAME = st.secrets["NEO4J_USERNAME"]
+                if "NEO4J_PASSWORD" in st.secrets:
+                    PASSWORD = st.secrets["NEO4J_PASSWORD"]
+        except Exception as e:
+            # If secrets fail, will fall back to env vars
+            pass
+
+        # Fallback to environment variables (local dev)
+        if not URI:
             URI = os.getenv('NEO4J_URI')
+        if not USERNAME:
             USERNAME = os.getenv('NEO4J_USERNAME')
+        if not PASSWORD:
             PASSWORD = os.getenv('NEO4J_PASSWORD')
 
         # Validate required credentials
