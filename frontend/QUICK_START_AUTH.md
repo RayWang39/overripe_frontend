@@ -1,11 +1,16 @@
 # 🚀 Authentication Quick Start
 
-## Test Login Credentials
+## Setup Login Credentials
 
+First, create your `frontend/users.json` file with secure passwords:
+
+```bash
+# Generate a password hash
+python frontend/scripts/hash_password.py
+# Enter your desired password, copy the hash
 ```
-Username: admin
-Password: admin123
-```
+
+Then create `frontend/users.json` (see example below in "Add New User" section).
 
 ## Start the App
 
@@ -45,6 +50,8 @@ Edit `frontend/users.json`:
 
 ## ⚠️ IMPORTANT
 
-**Change default passwords before production!**
+- **Always use strong, unique passwords**
+- **Never commit `users.json` to git** (it's gitignored)
+- **Use a password manager** to store your credentials
 
 See `AUTH_README.md` for complete documentation.

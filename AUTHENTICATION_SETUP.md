@@ -34,13 +34,15 @@ A **Minimal Viable Product (MVP)** authentication system has been successfully a
 
 ---
 
-## 🔑 Test Credentials (CHANGE IN PRODUCTION!)
+## 🔑 User Roles
 
-| Username | Password | Role | Access |
-|----------|----------|------|--------|
-| `admin` | `admin123` | admin | Full access |
-| `demo` | `demo123` | viewer | Read-only |
-| `analyst` | `demo123` | analyst | Queries + dashboards |
+| Role | Access |
+|------|--------|
+| `admin` | Full access |
+| `viewer` | Read-only |
+| `analyst` | Queries + dashboards |
+
+**⚠️ You must create your own user accounts with secure passwords!**
 
 ---
 
@@ -324,10 +326,8 @@ To get started:
 streamlit run frontend/app.py
 ```
 
-Login with:
-- Username: `admin`
-- Password: `admin123`
+Login with the credentials you created in your `frontend/users.json` file.
 
-Then **change the password immediately** for production use!
+**Remember:** Always use strong, unique passwords!
 
 For detailed instructions, see `frontend/AUTH_README.md`.

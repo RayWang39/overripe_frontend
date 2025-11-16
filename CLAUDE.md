@@ -338,10 +338,11 @@ The Streamlit frontend includes a simple, secure authentication system with user
 
 ### Quick Start
 
-**Default Test Credentials (CHANGE IN PRODUCTION!):**
-- Username: `admin`, Password: `admin123` (admin role)
-- Username: `demo`, Password: `demo123` (viewer role)
-- Username: `analyst`, Password: `demo123` (analyst role)
+**Setup:**
+First create your `frontend/users.json` file with secure passwords using:
+```bash
+python frontend/scripts/hash_password.py
+```
 
 **Login:**
 ```bash

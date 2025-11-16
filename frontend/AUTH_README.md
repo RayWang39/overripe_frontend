@@ -6,17 +6,19 @@ This Streamlit application now has a simple, secure authentication system with u
 
 ## Quick Start
 
-### Default Users (FOR TESTING ONLY - CHANGE IN PRODUCTION!)
+### Setting Up Users
 
-The system comes with 3 test users:
+The system requires you to create a `frontend/users.json` file with your user accounts.
 
-| Username | Password | Role | Access Level |
-|----------|----------|------|--------------|
-| `admin` | `admin123` | admin | Full access to all features |
-| `demo` | `demo123` | viewer | Read-only access |
-| `analyst` | `demo123` | analyst | Can run queries and view dashboards |
+**User Roles:**
 
-**⚠️ IMPORTANT: Change these passwords before deploying to production!**
+| Role | Access Level |
+|------|--------------|
+| `admin` | Full access to all features |
+| `viewer` | Read-only access |
+| `analyst` | Can run queries and view dashboards |
+
+**⚠️ IMPORTANT: Always use strong, unique passwords!**
 
 ## How to Use
 
