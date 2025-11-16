@@ -71,24 +71,35 @@ st.markdown(f"<p class='banner-text'>{banner_text}</p>", unsafe_allow_html=True)
 
 
 
-# Database connection settings - using environment variables
-URI = os.getenv('NEO4J_URI')
-USERNAME = os.getenv('NEO4J_USERNAME')
-PASSWORD = os.getenv('NEO4J_PASSWORD')
+# Lazy database connection function
+def get_neo4j_driver():
+    """Get Neo4j driver with lazy initialization (Streamlit Cloud compatible)"""
+    # Try Streamlit secrets first (Streamlit Cloud)
+    try:
+        URI = st.secrets.get("NEO4J_URI")
+        USERNAME = st.secrets.get("NEO4J_USERNAME")
+        PASSWORD = st.secrets.get("NEO4J_PASSWORD")
+    except Exception:
+        # Fallback to environment variables (local dev)
+        URI = os.getenv('NEO4J_URI')
+        USERNAME = os.getenv('NEO4J_USERNAME')
+        PASSWORD = os.getenv('NEO4J_PASSWORD')
 
-# Validate required environment variables
-if not all([URI, USERNAME, PASSWORD]):
-    missing = []
-    if not URI: missing.append('NEO4J_URI')
-    if not USERNAME: missing.append('NEO4J_USERNAME')
-    if not PASSWORD: missing.append('NEO4J_PASSWORD')
-    raise ValueError(
-        f"Missing required environment variables: {', '.join(missing)}. "
-        "Please set them in your .env file or environment."
-    )
+    # Validate required credentials
+    if not all([URI, USERNAME, PASSWORD]):
+        missing = []
+        if not URI: missing.append('NEO4J_URI')
+        if not USERNAME: missing.append('NEO4J_USERNAME')
+        if not PASSWORD: missing.append('NEO4J_PASSWORD')
+        raise ValueError(
+            f"Missing required credentials: {', '.join(missing)}. "
+            "Set them in Streamlit Secrets (Cloud) or .env file (local)."
+        )
 
-# Connect to Neo4j
-driver = GraphDatabase.driver(URI, auth=(USERNAME, PASSWORD))
+    return GraphDatabase.driver(URI, auth=(USERNAME, PASSWORD))
+
+# Initialize driver (will be called when needed)
+driver = get_neo4j_driver()
 
 # Method Chain Translation API - using environment variable with fallback
 API_BASE = os.getenv('API_BASE_URL', 'https://overripefrontend-production.up.railway.app')

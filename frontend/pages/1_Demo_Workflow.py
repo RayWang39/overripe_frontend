@@ -13,23 +13,34 @@ from auth import check_authentication, show_logout_button
 if not check_authentication():
     st.stop()  # Stop execution if not authenticated
 
-# Database connection
-URI = os.getenv('NEO4J_URI')
-USERNAME = os.getenv('NEO4J_USERNAME')
-PASSWORD = os.getenv('NEO4J_PASSWORD')
+# Lazy database connection function
+def get_neo4j_driver():
+    """Get Neo4j driver with lazy initialization (Streamlit Cloud compatible)"""
+    # Try Streamlit secrets first (Streamlit Cloud)
+    try:
+        URI = st.secrets.get("NEO4J_URI")
+        USERNAME = st.secrets.get("NEO4J_USERNAME")
+        PASSWORD = st.secrets.get("NEO4J_PASSWORD")
+    except Exception:
+        # Fallback to environment variables (local dev)
+        URI = os.getenv('NEO4J_URI')
+        USERNAME = os.getenv('NEO4J_USERNAME')
+        PASSWORD = os.getenv('NEO4J_PASSWORD')
 
-# Validate required environment variables
-if not all([URI, USERNAME, PASSWORD]):
-    missing = []
-    if not URI: missing.append('NEO4J_URI')
-    if not USERNAME: missing.append('NEO4J_USERNAME')
-    if not PASSWORD: missing.append('NEO4J_PASSWORD')
-    raise ValueError(
-        f"Missing required environment variables: {', '.join(missing)}. "
-        "Please set them in your .env file or environment."
-    )
+    # Validate required credentials
+    if not all([URI, USERNAME, PASSWORD]):
+        missing = []
+        if not URI: missing.append('NEO4J_URI')
+        if not USERNAME: missing.append('NEO4J_USERNAME')
+        if not PASSWORD: missing.append('NEO4J_PASSWORD')
+        raise ValueError(
+            f"Missing required credentials: {', '.join(missing)}. "
+            "Set them in Streamlit Secrets (Cloud) or .env file (local)."
+        )
 
-driver = GraphDatabase.driver(URI, auth=(USERNAME, PASSWORD))
+    return GraphDatabase.driver(URI, auth=(USERNAME, PASSWORD))
+
+driver = get_neo4j_driver()
 
 def run_page():
     # Neon ASCII banner

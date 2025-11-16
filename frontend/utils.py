@@ -9,23 +9,38 @@ import os
 
 from neo4j import GraphDatabase
 
-# Database connection using environment variables
-URI = os.getenv('NEO4J_URI')
-USERNAME = os.getenv('NEO4J_USERNAME')
-PASSWORD = os.getenv('NEO4J_PASSWORD')
+# Lazy database connection - only connect when get_driver() is called
+_driver = None
 
-# Validate required environment variables
-if not all([URI, USERNAME, PASSWORD]):
-    missing = []
-    if not URI: missing.append('NEO4J_URI')
-    if not USERNAME: missing.append('NEO4J_USERNAME')
-    if not PASSWORD: missing.append('NEO4J_PASSWORD')
-    raise ValueError(
-        f"Missing required environment variables: {', '.join(missing)}. "
-        "Please set them in your .env file or environment."
-    )
+def get_driver():
+    """Get or create Neo4j driver (lazy initialization for Streamlit Cloud compatibility)"""
+    global _driver
+    if _driver is None:
+        # Try to get from Streamlit secrets first (Streamlit Cloud)
+        try:
+            URI = st.secrets.get("NEO4J_URI")
+            USERNAME = st.secrets.get("NEO4J_USERNAME")
+            PASSWORD = st.secrets.get("NEO4J_PASSWORD")
+        except Exception:
+            # Fallback to environment variables (local dev)
+            URI = os.getenv('NEO4J_URI')
+            USERNAME = os.getenv('NEO4J_USERNAME')
+            PASSWORD = os.getenv('NEO4J_PASSWORD')
 
-driver = GraphDatabase.driver(URI, auth=(USERNAME, PASSWORD))
+        # Validate required credentials
+        if not all([URI, USERNAME, PASSWORD]):
+            missing = []
+            if not URI: missing.append('NEO4J_URI')
+            if not USERNAME: missing.append('NEO4J_USERNAME')
+            if not PASSWORD: missing.append('NEO4J_PASSWORD')
+            raise ValueError(
+                f"Missing required environment variables: {', '.join(missing)}. "
+                "Please set them in Streamlit Secrets or your .env file."
+            )
+
+        _driver = GraphDatabase.driver(URI, auth=(USERNAME, PASSWORD))
+
+    return _driver
 
 def run_query(query, max_records=100, driver=None):
     """Run a Cypher query against Neo4j and return results"""
