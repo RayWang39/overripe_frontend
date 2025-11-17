@@ -123,6 +123,3 @@ raw_data
 # Streamlit secrets and authentication
 .streamlit/secrets.toml
 frontend/users.json
-
-# Project instructions with sensitive data
-CLAUDE.md
