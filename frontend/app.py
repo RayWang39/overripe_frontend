@@ -635,6 +635,119 @@ with st.expander("📚 Method Chain Help"):
 
 st.markdown("---")
 
+# Natural Language Translation Section
+st.subheader("🤖 Natural Language Translator (NEW)")
+st.markdown("Describe your query in plain English - AI will generate Cypher for you")
+
+# Natural language input
+nl_query = st.text_area(
+    "Natural Language Query:",
+    placeholder="Examples:\n- Find all upstream providers of Google\n- Show organizations in the United States\n- List all ASes managed by Cloudflare",
+    height=100,
+    help="Describe what you want to find in plain English"
+)
+
+# Optional context
+col1, col2 = st.columns([1, 3])
+with col1:
+    include_asn = st.checkbox("Include ASN", value=False)
+with col2:
+    if include_asn:
+        context_asn = st.number_input(
+            "ASN:",
+            value=15169,
+            min_value=1,
+            max_value=999999,
+            help="Provide ASN for context",
+            key="nl_asn_input"
+        )
+
+# Translation button
+if st.button("🤖 Translate with AI", type="primary"):
+    if nl_query.strip():
+        try:
+            # Prepare context
+            context = {}
+            if include_asn:
+                context["asn"] = int(context_asn)
+
+            # Call NLP translation API
+            with st.spinner("AI is translating your query..."):
+                response = requests.post(
+                    f"{API_BASE}/api/v1/nlp/translate",
+                    json={
+                        "query": nl_query.strip(),
+                        "context": context if context else None
+                    },
+                    headers={"Content-Type": "application/json"},
+                    timeout=30
+                )
+
+            if response.status_code == 200:
+                result = response.json()
+
+                if result.get("success"):
+                    st.success("✅ AI translation successful!")
+
+                    # Display generated Cypher
+                    st.code(result["cypher"], language="cypher")
+
+                    if result.get("explanation"):
+                        st.info(f"💡 {result['explanation']}")
+
+                    # Button to use this query
+                    if st.button("📋 Use This Query", key="use_nl_query"):
+                        st.session_state.query_text = result["cypher"]
+                        st.success("✅ Query copied to the query box below!")
+                        st.rerun()
+                else:
+                    st.error(f"❌ Translation failed: {result.get('error', 'Unknown error')}")
+            else:
+                st.error(f"❌ API Error: {response.status_code} - {response.text}")
+
+        except requests.Timeout:
+            st.error("❌ Request timeout - AI service took too long to respond")
+        except requests.ConnectionError:
+            st.error("❌ Cannot connect to API. Make sure the API service is running.")
+        except Exception as e:
+            st.error(f"❌ Error: {str(e)}")
+    else:
+        st.warning("⚠️ Please enter a natural language query")
+
+# Help section
+with st.expander("💡 Natural Language Query Examples"):
+    st.markdown("""
+    **Example Queries:**
+
+    🔹 **AS Queries:**
+    - "Find all upstream providers of AS15169"
+    - "Show peers of Google"
+    - "List organizations managing AS13335"
+
+    🔹 **Geographic Queries:**
+    - "Find all ASes in the United States"
+    - "Show organizations in Germany"
+    - "List IXPs in France"
+
+    🔹 **Relationship Queries:**
+    - "Find all downstream customers of Cloudflare"
+    - "Show all prefixes originated by AS174"
+    - "List IXP members in DE-CIX Frankfurt"
+
+    🔹 **Complex Queries:**
+    - "Find US organizations with more than 5 ASes"
+    - "Show ASes with both Cogent and Level3 as upstreams"
+    - "List organizations peering at multiple IXPs"
+
+    **Tips:**
+    - Be specific about what you want to find
+    - Mention node types (AS, Organization, IXP, Country)
+    - Use proper names for well-known entities (Google, Cloudflare, etc.)
+    - Include ASN context when querying specific networks
+    """)
+
+st.markdown("---")
+
 # Initialize query text in session state if not present
 if "query_text" not in st.session_state:
     st.session_state.query_text = "MATCH (n)-[r]->(m) RETURN n,r,m LIMIT 10"

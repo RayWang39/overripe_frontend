@@ -9,7 +9,7 @@ from slowapi.errors import RateLimitExceeded
 import uvicorn
 
 from config import settings
-from routers import query, search, admin, translation
+from routers import query, search, admin, translation, nlp_translation
 
 # Create FastAPI app
 app = FastAPI(
@@ -37,6 +37,7 @@ if settings.rate_limit_enabled:
 
 # Include routers
 app.include_router(translation.router)  # Primary translation service
+app.include_router(nlp_translation.router)  # Natural language translation
 app.include_router(query.router)
 app.include_router(search.router)
 app.include_router(admin.router)
